@@ -48,3 +48,25 @@ def confirm_proposed(conn, round_id: int) -> None:
     from marksapp.rounds import confirm_links, match_round
     confirm_links(conn, [(m.stud_id, m.student_id, m.names[0])
                          for m in match_round(conn, round_id) if m.status == "proposed"])
+
+
+def linked_round(conn, tmp_path):
+    """Contacts + Advance/Mains round with every exact match confirmed."""
+    from marksapp.results import build_results
+    seed_contacts(conn, tmp_path)
+    rid = seed_round(conn, tmp_path)
+    confirm_proposed(conn, rid)
+    return rid, build_results(conn, rid)
+
+
+def make_result(name="PALLAPU MEGHANA SRI", phone="+919876543201",
+                exams=(("Advance Exam - 4", 41, 32, 17, 90), ("Mains Exam - 4", 62, 17, 16, 95))):
+    from marksapp.results import ExamMarks, StudentResult
+    from marksapp.values import parse_mark
+    ems = []
+    for i, (display, m, p, c, t) in enumerate(exams):
+        ems.append(ExamMarks(exam_id=i + 1, display_name=display, exam_type=display.split(" - ")[0],
+                             exam_number=4, mark_row_id=i + 1, maths=parse_mark(m), physics=parse_mark(p),
+                             chemistry=parse_mark(c), total=parse_mark(t), total_in_file=parse_mark(t),
+                             computed_total=parse_mark(t), absent_row=False, issues=[]))
+    return StudentResult(student_id=1, name=name, phone=phone, stud_id="1", exams=ems, issues=[])
