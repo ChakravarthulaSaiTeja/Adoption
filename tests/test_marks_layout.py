@@ -1,7 +1,7 @@
 import pytest
 
 from marksapp.readers.grid import load_grid
-from marksapp.readers.marks_layout import LayoutNotFound, parse_marks_grid
+from marksapp.readers.marks_layout import LayoutNotFound, header_signature, parse_marks_grid
 from marksapp.values import Mark
 from tests.fixtures import builders
 
@@ -58,6 +58,13 @@ def test_manual_column_map():
     f = parse_marks_grid(g, column_map={"stud_id": 0, "name": 1, "maths": 2, "physics": 3,
                                         "chemistry": 4, "total": 5}, header_row=0)
     assert f.rows[0].total_in_file == Mark("num", 25.0) and f.rows[0].stud_id == "A123"
+    assert f.maxes == {"maths": None, "physics": None, "chemistry": None, "total": None}  # a data row is not a max row
+
+
+def test_header_signature_matches_parsed():
+    g = builders.marks_grid()
+    f = parse_marks_grid(g)
+    assert header_signature(g[f.header_row]) == f.header_signature
 
 
 def test_no_header_raises():

@@ -94,6 +94,10 @@ def _cell(row: list[str], col: int) -> str:
     return row[col] if 0 <= col < len(row) else ""
 
 
+def header_signature(cells: list[str]) -> str:
+    return hashlib.sha1("|".join(_norm(c) for c in cells).encode()).hexdigest()
+
+
 def detect_columns(grid: Grid) -> tuple[int, dict[str, int]]:
     for i, row in enumerate(grid):
         found: dict[str, int] = {}
@@ -126,7 +130,9 @@ def _maxes(grid: Grid, header_row: int, column_map: dict[str, int]) -> dict[str,
         value = None
         if col is not None and header_row >= 0:
             _, value = _label_and_max(_cell(grid[header_row], col))
-            if value is None and header_row + 1 < len(grid):
+            below_is_student = (header_row + 1 < len(grid) and "stud_id" in column_map
+                                and "name" in column_map and _is_data_row(grid[header_row + 1], column_map))
+            if value is None and header_row + 1 < len(grid) and not below_is_student:
                 below = _cell(grid[header_row + 1], col).strip()
                 if _NUMBER.match(below):
                     value = float(below)
@@ -152,8 +158,7 @@ def parse_marks_grid(grid: Grid, column_map: dict[str, int] | None = None,
         except LayoutNotFound:
             header_row = -1
 
-    header_cells = grid[header_row] if header_row >= 0 else []
-    signature = hashlib.sha1("|".join(_norm(c) for c in header_cells).encode()).hexdigest()
+    signature = header_signature(grid[header_row] if header_row >= 0 else [])
     parsed = ParsedMarksFile(
         test_name=_header_value(grid, _TEST_NAME, header_row),
         test_date=_header_value(grid, _TEST_DATE, header_row),
