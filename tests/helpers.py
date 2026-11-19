@@ -17,7 +17,7 @@ def seed_contacts(conn, tmp_path) -> dict[str, int]:
     return {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM students")}
 
 
-def add_file(conn, round_id: int, path) -> int:
+def add_file(conn, round_id: int, path, via_ocr: bool = False) -> int:
     """Add one marks file to a round the way the upload page does."""
     from marksapp.examnames import suggest_exam_name
     from marksapp.readers.grid import file_hash, load_grid
@@ -27,7 +27,7 @@ def add_file(conn, round_id: int, path) -> int:
     data = path.read_bytes()
     parsed = parse_marks_grid(load_grid(data, path.name))
     name = suggest_exam_name(parsed.test_name, get_setting(conn, "exam_rules"))
-    return add_exam(conn, round_id, parsed, name, path.name, file_hash(data))
+    return add_exam(conn, round_id, parsed, name, path.name, file_hash(data), via_ocr=via_ocr)
 
 
 _seed_counter = [0]
@@ -42,3 +42,9 @@ def seed_round(conn, tmp_path, fmt: str = "xlsx", mains: bool = True) -> int:
     if mains:
         add_file(conn, rid, files["mains_pdf" if fmt == "pdf" else "mains_xlsx"])
     return rid
+
+
+def confirm_proposed(conn, round_id: int) -> None:
+    from marksapp.rounds import confirm_links, match_round
+    confirm_links(conn, [(m.stud_id, m.student_id, m.names[0])
+                         for m in match_round(conn, round_id) if m.status == "proposed"])
