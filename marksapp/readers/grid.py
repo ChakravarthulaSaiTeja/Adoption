@@ -37,6 +37,9 @@ def _cell(v: object) -> str:
     return " ".join(str(v).split())
 
 
+cell_text = _cell
+
+
 def file_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
