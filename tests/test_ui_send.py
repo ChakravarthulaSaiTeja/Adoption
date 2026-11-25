@@ -96,3 +96,26 @@ def test_settings_turns_on_name_line(app_env, conn):
     at.checkbox(key="set_inc").check()
     at.button(key="set_msg_save").click().run(timeout=30)
     assert not at.error and get_setting(conn, "message")["include_name"] is True
+
+
+def test_preview_drops_approvals_after_format_change(app_env, conn, tmp_path):
+    from marksapp.settings import set_setting
+    rid, rr = linked_round(conn, tmp_path)
+    approve(conn, rid, rr.students, message_settings(conn))
+    assert get_outbox(conn, rid)
+    m = get_setting(conn, "message")
+    m["include_name"] = True
+    set_setting(conn, "message", m)
+    at = _at("preview_page").run(timeout=30)
+    assert not at.exception
+    assert any("approvals were cleared" in w.value for w in at.warning)
+    assert get_outbox(conn, rid) == {}
+
+
+def test_preview_shows_status_labels_and_bubble(app_env, conn, tmp_path):
+    rid, rr = linked_round(conn, tmp_path)
+    at = _at("preview_page").run(timeout=30)
+    assert not at.exception
+    statuses = list(at.dataframe[0].value["Status"])
+    assert "🟢 Ready" in statuses and "🔴 Blocked" in statuses
+    assert any('class="wa-bubble"' in str(m.value) for m in at.markdown)
