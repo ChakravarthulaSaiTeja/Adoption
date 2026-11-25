@@ -73,23 +73,26 @@ def render(conn: sqlite3.Connection) -> None:
                        format_func=lambda i: f"{by_id[i].name} — {status_label(_status(by_id[i], out.get(i)))}")
     s = by_id[sid]
     rec = out.get(sid)
-    st.markdown(f"**To:** {pretty_phone(s.phone or '') or '⚠ no valid number'} · parent of {s.name}")
-    st.markdown(chat(render_message(s, ms)), unsafe_allow_html=True)
-    for i in s.issues:
-        (st.error if i.blocking else st.warning)(i.text)
-    if rec is not None and rec.status in LOCKING_STATES:
-        st.info(f"Status: {status_label(rec.status)}" + (f" on {rec.sent_at}" if rec.sent_at else ""))
-        return
-    b1, b2 = st.columns(2)
-    if s.status == "ready":
-        if b1.button("Approve", key="approve_one", type="primary",
-                     disabled=rec is not None and rec.status == "approved"):
-            approve(conn, round_id, [s], ms)
+    left, right = st.columns([3, 2], gap="large")
+    left.markdown(chat(render_message(s, ms)), unsafe_allow_html=True)
+    with right:
+        st.markdown(f"**To:** {pretty_phone(s.phone or '') or '⚠ no valid number'}")
+        st.caption(f"Parent of {s.name}")
+        for i in s.issues:
+            (st.error if i.blocking else st.warning)(i.text)
+        if rec is not None and rec.status in LOCKING_STATES:
+            st.info(f"Status: {status_label(rec.status)}" + (f" on {rec.sent_at}" if rec.sent_at else ""))
+            return
+        b1, b2 = st.columns(2)
+        if s.status == "ready":
+            if b1.button("Approve", key="approve_one", type="primary",
+                         disabled=rec is not None and rec.status == "approved"):
+                approve(conn, round_id, [s], ms)
+                st.rerun()
+        elif b1.button("Approve after checking", key="approve_one", disabled=s.blocking,
+                       help="Fix the red problems on Needs attention first." if s.blocking else None):
+            approve(conn, round_id, [s], ms, allow_review=True)
             st.rerun()
-    elif b1.button("Approve after checking", key="approve_one", disabled=s.blocking,
-                   help="Fix the red problems on Needs attention first." if s.blocking else None):
-        approve(conn, round_id, [s], ms, allow_review=True)
-        st.rerun()
-    if b2.button("Skip", key="skip_one"):
-        skip(conn, round_id, [sid])
-        st.rerun()
+        if b2.button("Skip", key="skip_one"):
+            skip(conn, round_id, [sid])
+            st.rerun()

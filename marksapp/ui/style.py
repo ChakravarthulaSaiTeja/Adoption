@@ -14,7 +14,7 @@ CSS = f"""
 h1 {{ font-weight: 700; letter-spacing: -0.01em; }}
 [data-testid="stSidebarNav"] a span {{ font-size: 0.98rem; }}
 .app-name {{ font-weight: 700; font-size: 1.15rem; color: {ACCENT_DARK}; margin: 0.2rem 0 0.6rem 0; }}
-.wa-chat {{ background: #EFEAE2; border-radius: 12px; padding: 14px 16px; margin: 6px 0 12px 0; }}
+.wa-chat {{ background: #EFEAE2; border-radius: 12px; padding: 14px 16px; margin: 6px 0 12px 0; max-width: 520px; }}
 .wa-bubble {{ background: #D9FDD3; border-radius: 10px 10px 2px 10px; padding: 9px 13px; max-width: 460px;
   margin-left: auto; font-size: 0.97rem; line-height: 1.45; color: #111B21;
   box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13); white-space: normal; word-wrap: break-word; }}

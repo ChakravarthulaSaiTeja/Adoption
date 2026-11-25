@@ -119,24 +119,26 @@ def _phone_flow(conn: sqlite3.Connection, round_id: int, results: dict, queued: 
         return
     rec, res = nxt
     with st.container(border=True):
-        st.markdown(f"#### {res.name}")
-        st.caption(f"Parent's WhatsApp: {pretty_phone(rec.phone)}")
-        if rec.status == "failed":
-            st.warning(f"Last try didn't go through: {rec.error or 'no reason given'}")
-        st.markdown(chat(rec.body), unsafe_allow_html=True)
-        st.markdown(whatsapp_link_html(phone_link(rec.phone, rec.body, kind), kind), unsafe_allow_html=True)
-        st.caption("WhatsApp opens with the message typed. Press Send there, then come back and click "
-                   "**✅ Sent — next**. Already sent this one? Just click ✅ Sent — next.")
-        c1, c2, c3 = st.columns([2, 3, 2])
-        c1.button("✅ Sent — next", key=f"mark_sent_{rec.id}", type="primary",
-                  on_click=_act, args=(conn, "sent", rec.id, round_id))
-        with c2:
-            st.text_input("Reason, if it didn't send", key=f"fail_reason_{rec.id}",
-                          placeholder="e.g. number not on WhatsApp", label_visibility="collapsed")
-            st.button("Couldn't send", key=f"mark_failed_{rec.id}",
-                      on_click=_act, args=(conn, "failed", rec.id, round_id))
-        c3.button("Skip this student", key=f"skip_this_{rec.id}",
-                  on_click=_act, args=(conn, "skip", rec.id, round_id))
+        left, right = st.columns([3, 2], gap="large")
+        left.markdown(chat(rec.body), unsafe_allow_html=True)
+        with right:
+            st.markdown(f"#### {res.name}")
+            st.caption(f"Parent's WhatsApp: {pretty_phone(rec.phone)}")
+            if rec.status == "failed":
+                st.warning(f"Last try didn't go through: {rec.error or 'no reason given'}")
+            st.markdown(whatsapp_link_html(phone_link(rec.phone, rec.body, kind), kind), unsafe_allow_html=True)
+            st.caption("WhatsApp opens with the message typed. Press Send there, then come back here.")
+            st.button("✅ Sent — next", key=f"mark_sent_{rec.id}", type="primary",
+                      on_click=_act, args=(conn, "sent", rec.id, round_id))
+            st.caption("Already sent this one? Just click ✅ Sent — next.")
+            with st.expander("Didn't send, or skip this student"):
+                st.text_input("Reason, if it didn't send", key=f"fail_reason_{rec.id}",
+                              placeholder="e.g. number not on WhatsApp")
+                c1, c2 = st.columns(2)
+                c1.button("Couldn't send", key=f"mark_failed_{rec.id}",
+                          on_click=_act, args=(conn, "failed", rec.id, round_id))
+                c2.button("Skip this student", key=f"skip_this_{rec.id}",
+                          on_click=_act, args=(conn, "skip", rec.id, round_id))
     if kind == "desktop":
         st.caption("First time only: your browser asks whether to open WhatsApp. Tick **Always allow**.")
 
