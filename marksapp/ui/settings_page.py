@@ -12,11 +12,12 @@ from marksapp.results import ExamMarks, StudentResult
 from marksapp.secrets_store import load_secrets, save_secrets
 from marksapp.sending.method import remove_api_key, sending_method
 from marksapp.settings import get_setting, set_setting
-from marksapp.ui.style import chip
+from marksapp.ui.style import chat, chip, header
 from marksapp.values import parse_mark
 
-LINK_KINDS = {"wa.me": "WhatsApp link (phone or computer)", "web": "WhatsApp Web in the browser",
-              "desktop": "WhatsApp desktop app"}
+LINK_KINDS = {"desktop": "WhatsApp desktop app (recommended on Mac and Windows)",
+              "web": "WhatsApp Web in the browser (reuses one tab)",
+              "wa.me": "WhatsApp link (for phones)"}
 
 
 def _sample() -> StudentResult:
@@ -68,7 +69,7 @@ def _message(conn: sqlite3.Connection) -> None:
         preview, error = None, f"The format has a mistake ({e!r}). Check the {{curly brackets}}."
     if preview is not None:
         st.caption("Preview with a made-up student:")
-        st.code(preview, language=None)
+        st.markdown(chat(preview), unsafe_allow_html=True)
     if st.button("Save message format", key="set_msg_save"):
         if error:
             st.error(error)
@@ -98,7 +99,8 @@ def _link_kind(conn: sqlite3.Connection) -> None:
     st.subheader("How WhatsApp opens")
     current = get_setting(conn, "link_kind")
     kind = st.radio("Open messages in", list(LINK_KINDS), index=list(LINK_KINDS).index(current),
-                    format_func=LINK_KINDS.get, key="set_link")
+                    format_func=LINK_KINDS.get, key="set_link",
+                    help="Desktop app: the first time, your browser asks to open WhatsApp — tick Always allow.")
     if kind != current:
         set_setting(conn, "link_kind", kind)
         st.success("Saved.")
@@ -153,13 +155,13 @@ def _api(conn: sqlite3.Connection) -> None:
 
 
 def render(conn: sqlite3.Connection) -> None:
-    st.title("Settings")
+    header("Settings", "Message format, how WhatsApp opens, exam names, password and the optional API.")
     _message(conn)
-    st.divider()
-    _exam_rules(conn)
     st.divider()
     _link_kind(conn)
     st.divider()
-    _api(conn)
+    _exam_rules(conn)
     st.divider()
     _password(conn)
+    st.divider()
+    _api(conn)

@@ -11,8 +11,16 @@ from marksapp.names import similarity
 from marksapp.results import build_results, edit_mark, set_total_choice
 from marksapp.rounds import accept_name, confirm_links, ignore_ids, unignore_id
 from marksapp.ui.common import pick_round
+from marksapp.ui.style import header
 
 DECIDE, NOT_MINE = "decide", "not_mine"
+DUP_HINT = ("This ID appears more than once in the same file. Correct the file, then on **New round** "
+            "upload it again and tick **Replace the earlier import**.")
+OTHER_HINTS = {
+    "absent": "If they really were absent, approve them on Preview & approve after checking. If not, "
+              "check the file: their row may be missing or their ID may be wrong.",
+    "ocr": "Compare every mark with the scanned file before approving on Preview & approve.",
+}
 MARK_CODES = {"out_of_range", "subject_missing", "subject_absent", "total_over_max"}
 
 
@@ -36,6 +44,8 @@ def _links(conn: sqlite3.Connection, rr) -> None:
                 st.markdown(f"ID {m.stud_id} · **{file_name}**")
                 for r in m.reasons:
                     st.caption(f"⚠ {r}")
+                if any("more than once" in r for r in m.reasons):
+                    st.caption(DUP_HINT)
                 options = [DECIDE, NOT_MINE] + [c.student_id for c in m.candidates]
                 scores = {c.student_id: c.score for c in m.candidates}
                 fmt = lambda o: ("Decide later" if o == DECIDE else "Not on my list" if o == NOT_MINE
@@ -124,6 +134,29 @@ def _marks(conn: sqlite3.Connection, rr) -> None:
                     st.caption("Type a number, AB (absent) or NA (not available).")
 
 
+def _everything_else(rr) -> None:
+    """Every remaining flag, so nothing is only visible on another page."""
+    items = []
+    for s in rr.students:
+        notes = [i for i in s.issues if i.code in OTHER_HINTS
+                 or (i.code == "match" and "differs" not in i.text)]
+        if notes:
+            items.append((s, notes))
+    if not items:
+        return
+    st.subheader(f"Everything else to check ({len(items)})")
+    for s, notes in items:
+        with st.container(border=True):
+            st.markdown(f"**{s.name}**")
+            seen = set()
+            for i in notes:
+                st.warning(i.text)
+                hint = DUP_HINT if "more than once" in i.text else OTHER_HINTS.get(i.code)
+                if hint and hint not in seen:
+                    st.caption(hint)
+                    seen.add(hint)
+
+
 def _not_found(conn: sqlite3.Connection, rr) -> None:
     st.subheader(f"3. Not found on your list ({len(rr.not_found)})")
     if not rr.not_found:
@@ -176,7 +209,8 @@ def _rest(conn: sqlite3.Connection, rr) -> None:
 
 
 def render(conn: sqlite3.Connection) -> None:
-    st.title("Needs attention")
+    header("Needs attention", "Confirm who is who, fix marks and numbers, and see every row that "
+                              "won't get a message.")
     round_id = pick_round(conn, key="att_round")
     if round_id is None:
         return
@@ -184,6 +218,7 @@ def render(conn: sqlite3.Connection) -> None:
     _links(conn, rr)
     _name_differs(conn, rr, round_id)
     _marks(conn, rr)
+    _everything_else(rr)
     _not_found(conn, rr)
     _rest(conn, rr)
     ready = sum(s.status == "ready" for s in rr.students)

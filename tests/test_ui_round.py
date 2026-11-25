@@ -88,3 +88,29 @@ def test_not_found_link_has_no_preselected_student(app_env, conn, tmp_path):
     at.checkbox(key="lnc_100000001").check().run(timeout=30)
     at.button(key="lnb_100000001").click().run(timeout=30)
     assert conn.execute("select stud_id from students where id=?", (extra,)).fetchone()[0] == "100000001"
+
+
+def _page_text(at) -> str:
+    parts = []
+    for kind in ("markdown", "warning", "info", "error", "caption"):
+        parts += [str(x.value) for x in getattr(at, kind)]
+    return "\n".join(parts)
+
+
+def test_attention_lists_absent_and_duplicate_rows(app_env, conn, tmp_path):
+    from marksapp.contacts import update_student
+    from tests.helpers import add_file, confirm_proposed
+    ids = seed_contacts(conn, tmp_path)
+    rid = seed_round(conn, tmp_path)
+    confirm_proposed(conn, rid)
+    update_student(conn, ids["Syed Afreen"], stud_id="999")  # linked, but absent from both files
+    g = builders.marks_grid(test_name="JEE(Adv)/WTA-9")
+    g.append(list(g[-1]))  # the last student appears twice in this file
+    p = tmp_path / "dup.xlsx"
+    builders.write_xlsx(g, p)
+    add_file(conn, rid, p)
+    at = AppTest.from_function(attention_script).run(timeout=30)
+    assert not at.exception
+    text = _page_text(at)
+    assert "Absent from Advance Exam - 4" in text
+    assert "Replace the earlier import" in text

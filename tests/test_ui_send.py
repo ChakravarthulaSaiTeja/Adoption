@@ -119,3 +119,11 @@ def test_preview_shows_status_labels_and_bubble(app_env, conn, tmp_path):
     statuses = list(at.dataframe[0].value["Status"])
     assert "🟢 Ready" in statuses and "🔴 Blocked" in statuses
     assert any('class="wa-bubble"' in str(m.value) for m in at.markdown)
+
+
+def test_settings_preview_is_a_bubble(app_env, conn):
+    at = _at("settings_page").run(timeout=30)
+    assert not at.exception
+    assert any('class="wa-bubble"' in str(m.value) for m in at.markdown)
+    titles = [h.value for h in at.subheader]
+    assert titles.index("Message format") < titles.index("How WhatsApp opens") < titles.index("Exam names")
