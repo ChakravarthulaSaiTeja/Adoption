@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from marksapp import audit
-from marksapp.contacts import unconfirmed_shared_numbers
+from marksapp.contacts import looks_like_missing_91, unconfirmed_foreign_numbers, unconfirmed_shared_numbers
 from marksapp.matching import MatchResult
 from marksapp.rounds import ExamRec, MarkRowRec, list_exams, match_round, round_rows
 from marksapp.values import AB, NA, Mark, decode_mark, parse_mark
@@ -144,6 +144,7 @@ def build_results(conn: sqlite3.Connection, round_id: int) -> RoundResults:
     ocr_exams = {e.id for e in exams if e.via_ocr}
     shared: dict[str, list[str]] = {g[0]["phone"]: [x["name"] for x in g]
                                     for g in unconfirmed_shared_numbers(conn)}
+    foreign = {s["id"] for s in unconfirmed_foreign_numbers(conn)}
 
     results: list[StudentResult] = []
     for s in students if exams else []:
@@ -160,6 +161,10 @@ def build_results(conn: sqlite3.Connection, round_id: int) -> RoundResults:
             issues.append(Issue("inactive", "Student is marked inactive — reactivate in Contacts to send", True))
         if not s["phone"]:
             issues.append(Issue("no_phone", "No valid WhatsApp number", True))
+        elif s["id"] in foreign:
+            hint = " — it looks like an Indian mobile without 91" if looks_like_missing_91(s["phone"]) else ""
+            issues.append(Issue("foreign_phone", f"{s['phone']} is not an Indian (+91) number{hint}. "
+                                                 "Confirm it on Contacts", True))
         elif s["phone"] in shared:
             others = ", ".join(n for n in shared[s["phone"]] if n != s["name"])
             issues.append(Issue("shared_phone", f"Same WhatsApp number as {others} — confirm on Contacts "

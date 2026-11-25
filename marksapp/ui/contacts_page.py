@@ -8,7 +8,8 @@ import streamlit as st
 
 from marksapp.contacts import (add_student, apply_contact_diff, confirm_shared_number, detect_contact_columns,
                                diff_contacts, list_students, parse_contacts, shared_number_groups,
-                               unconfirmed_shared_numbers, update_student)
+                               unconfirmed_shared_numbers, update_student, confirm_foreign_number,
+                               looks_like_missing_91, unconfirmed_foreign_numbers)
 from marksapp.phones import pretty_phone
 from marksapp.readers.grid import NoTextInPdf, UnsupportedFile, file_hash, load_grid
 from marksapp.readers.marks_layout import header_signature
@@ -135,6 +136,17 @@ def _student_list(conn: sqlite3.Connection) -> None:
             if c2.button("Yes, same parent", key=f"shared_ok_{g[0]['phone']}"):
                 confirm_shared_number(conn, g[0]["phone"])
                 st.rerun()
+    for f in unconfirmed_foreign_numbers(conn):
+        missing_91 = looks_like_missing_91(f["phone"])
+        msg = (f"**{f['name']}**: {f['phone']} is not an Indian (+91) number. "
+               + ("It looks like an Indian mobile with the 91 missing — if so, edit it below as "
+                  f"+91 {f['phone'][1:]}. " if missing_91 else "")
+               + "Messages to this number can't be approved until you confirm it.")
+        c1, c2 = st.columns([4, 1])
+        c1.warning(msg)
+        if c2.button("Yes, this number is right", key=f"foreign_ok_{f['id']}"):
+            confirm_foreign_number(conn, f["id"])
+            st.rerun()
     if shared_number_groups(conn) and not get_setting(conn, "message")["include_name"]:
         st.info("Tip: when a parent has more than one child on the list, turn on 'Start each message "
                 "with the student's name' in Settings so they can tell the messages apart.")

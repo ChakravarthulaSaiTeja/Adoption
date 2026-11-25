@@ -158,3 +158,21 @@ def test_shared_number_blocks_until_owner_confirms(conn, tmp_path):
     add_student(conn, "Someone Else", "9876543205")  # a third student on the same number
     nakka = [s for s in build_results(conn, rid).students if s.name.startswith("Nakka")]
     assert all(s.blocking for s in nakka)
+
+
+def test_foreign_number_blocks_until_owner_confirms(conn, tmp_path):
+    from marksapp.contacts import confirm_foreign_number, unconfirmed_foreign_numbers
+    from tests.helpers import linked_round
+    rid, rr = linked_round(conn, tmp_path)
+    afreen = next(s for s in rr.students if s.name == "Syed Afreen")
+    update_student(conn, afreen.student_id, phone="+9876543210")  # typed + but forgot 91
+    s = next(x for x in build_results(conn, rid).students if x.student_id == afreen.student_id)
+    issue = next(i for i in s.issues if i.code == "foreign_phone")
+    assert issue.blocking and "without 91" in issue.text
+    assert [r["id"] for r in unconfirmed_foreign_numbers(conn)] == [afreen.student_id]
+    confirm_foreign_number(conn, afreen.student_id)
+    s = next(x for x in build_results(conn, rid).students if x.student_id == afreen.student_id)
+    assert "foreign_phone" not in codes(s.issues)
+    update_student(conn, afreen.student_id, phone="+971501234567")  # a different foreign number
+    s = next(x for x in build_results(conn, rid).students if x.student_id == afreen.student_id)
+    assert "foreign_phone" in codes(s.issues) and "without 91" not in s.issues[-1].text

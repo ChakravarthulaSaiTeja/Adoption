@@ -91,7 +91,7 @@ def _name_differs(conn: sqlite3.Connection, rr, round_id: int) -> None:
 
 
 def _marks(conn: sqlite3.Connection, rr) -> None:
-    flagged = [s for s in rr.students if any(i.code in MARK_CODES | {"total_mismatch", "no_phone", "inactive", "shared_phone"}
+    flagged = [s for s in rr.students if any(i.code in MARK_CODES | {"total_mismatch", "no_phone", "inactive", "shared_phone", "foreign_phone"}
                                              for i in s.issues)]
     st.subheader(f"2. Marks and numbers to fix ({len(flagged)})")
     if not flagged:
@@ -101,7 +101,7 @@ def _marks(conn: sqlite3.Connection, rr) -> None:
         with st.container(border=True):
             st.markdown(f"**{s.name}**")
             for i in s.issues:
-                if i.code in ("no_phone", "inactive", "shared_phone"):
+                if i.code in ("no_phone", "inactive", "shared_phone", "foreign_phone"):
                     st.error(f"{i.text} — fix it on the Contacts page.")
             for em in s.exams:
                 codes = {i.code for i in em.issues}

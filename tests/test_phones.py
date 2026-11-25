@@ -50,3 +50,9 @@ def test_indian_rules_unchanged():
     assert normalise_phone("+91 5876543210").problem == "Must start with 6, 7, 8 or 9"
     assert normalise_phone("+91 98765").problem == "Must be 10 digits"
     assert normalise_phone("09876543210").e164 == "+919876543210"
+
+
+def test_extra_text_on_international_number_is_rejected():
+    for raw in ["+971 50 123 4567 ext 12", "+44 20 7946 0958 x2"]:
+        r = normalise_phone(raw)
+        assert not r.ok and r.problem == "Remove the extra text (like 'ext') from the number", raw

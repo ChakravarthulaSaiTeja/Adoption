@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import streamlit as st
 
-from marksapp.contacts import list_students, unconfirmed_shared_numbers
+from marksapp.contacts import list_students, unconfirmed_foreign_numbers, unconfirmed_shared_numbers
 from marksapp.outbox import get_outbox
 from marksapp.results import build_results
 from marksapp.rounds import list_exams, list_rounds
@@ -31,7 +31,8 @@ def _plural(n: int, word: str) -> str:
 
 def round_steps(conn: sqlite3.Connection) -> tuple[sqlite3.Row | None, list[Step]]:
     students = list_students(conn)
-    to_check = sum(1 for s in students if not s["phone"]) + len(unconfirmed_shared_numbers(conn))
+    to_check = (sum(1 for s in students if not s["phone"]) + len(unconfirmed_shared_numbers(conn))
+                + len(unconfirmed_foreign_numbers(conn)))
     contacts = Step(1, "Contacts", _plural(len(students), "student")
                     + (f" · {_plural(to_check, 'number')} to check" if to_check else ""),
                     bool(students) and to_check == 0, "contacts")

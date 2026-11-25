@@ -74,3 +74,12 @@ def test_server_must_be_local_only(monkeypatch):
     for address, ok in [(None, False), ("", False), ("0.0.0.0", False), ("127.0.0.1", True), ("localhost", True)]:
         monkeypatch.setattr(common.st, "get_option", lambda key, a=address: a)
         assert common.server_is_local() is ok, address
+
+
+def test_contacts_page_confirms_foreign_number(app_env, conn, tmp_path):
+    from marksapp.contacts import unconfirmed_foreign_numbers, update_student
+    ids = seed_contacts(conn, tmp_path)
+    update_student(conn, ids["Syed Afreen"], phone="+971501234567")
+    at = AppTest.from_function(contacts_script).run(timeout=30)
+    at.button(key=f"foreign_ok_{ids['Syed Afreen']}").click().run(timeout=30)
+    assert not at.exception and unconfirmed_foreign_numbers(conn) == []

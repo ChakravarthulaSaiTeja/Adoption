@@ -49,6 +49,8 @@ def normalise_phone(raw: object) -> PhoneResult:
     if plus:
         if digits.startswith("91"):
             digits = digits[2:]  # Indian number written with its country code: Indian rules below
+        elif re.search(r"[A-Za-z]", text):
+            return _bad(text, "Remove the extra text (like 'ext') from the number")
         elif 8 <= len(digits) <= 15 and not digits.startswith("0"):
             return PhoneResult(True, "+" + digits, text, None)  # a parent abroad
         else:

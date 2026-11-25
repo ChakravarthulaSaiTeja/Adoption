@@ -239,3 +239,33 @@ def confirm_shared_number(conn: sqlite3.Connection, phone: str) -> None:
     ok[phone] = ids
     set_setting(conn, "shared_numbers_ok", ok)
     audit.log(conn, "shared_number_confirmed", phone=phone, student_ids=ids)
+
+
+def looks_like_missing_91(phone: str) -> bool:
+    """'+9876543210': ten digits starting 6–9 after the '+', the shape of an Indian mobile without 91."""
+    digits = phone.lstrip("+")
+    return len(digits) == 10 and digits[0] in "6789"
+
+
+def _foreign_ok(conn: sqlite3.Connection) -> dict[str, str]:
+    from marksapp.settings import get_setting
+    return get_setting(conn, "foreign_numbers_ok") or {}
+
+
+def unconfirmed_foreign_numbers(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Active students whose number is not Indian (+91) and the owner hasn't confirmed this exact number."""
+    ok = _foreign_ok(conn)
+    return [s for s in conn.execute("SELECT * FROM students WHERE active = 1 AND phone IS NOT NULL "
+                                    "AND phone NOT LIKE '+91%' ORDER BY name")
+            if ok.get(str(s["id"])) != s["phone"]]
+
+
+def confirm_foreign_number(conn: sqlite3.Connection, student_id: int) -> None:
+    from marksapp.settings import set_setting
+    row = conn.execute("SELECT phone FROM students WHERE id = ?", (student_id,)).fetchone()
+    if row is None or not row["phone"]:
+        raise ValueError("Student has no number")
+    ok = _foreign_ok(conn)
+    ok[str(student_id)] = row["phone"]
+    set_setting(conn, "foreign_numbers_ok", ok)
+    audit.log(conn, "foreign_number_confirmed", student_id=student_id, phone=row["phone"])
