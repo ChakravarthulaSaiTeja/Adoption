@@ -1,7 +1,7 @@
 # UI Upgrade, Sending Without the API, and Bug Fixes — Design
 
 Date: 2026-11-25
-Status: **For approval**
+Status: **Approved (owner gave full permission, 2026-11-25), with the owner's sending rule in 6.7**
 Builds on: `2026-11-19-student-marks-whatsapp-design.md` (all of its safety rules still apply)
 
 ## 1. Intent
@@ -34,8 +34,9 @@ each child's marks going to the right parent is not loosened in any way.
   - one student per card
   - "Open in WhatsApp" opens the desktop app, with no browser tabs
   - "✅ Sent — next" moves on in one click
-- The API moved out of sight: Settings → a collapsed "Advanced" section. The Send
-  page only offers it when it's switched on (already true).
+- **Both ways of sending kept, chosen automatically (owner's rule):** if the WhatsApp
+  Business API key is saved, the app sends through the API; if not, it uses the
+  normal method (6.7).
 - The bugs below fixed (section 5).
 
 **Non-goals**
@@ -213,8 +214,9 @@ The order:
 2. How WhatsApp opens
 3. Exam names
 4. Password
-5. **Advanced: WhatsApp Business API (optional)**, collapsed, with everything that
-   exists today
+5. **WhatsApp Business API (optional)**, a visible section. It shows which way of
+   sending is in use and has the existing fields. The "Use the API for sending" tick
+   box goes: saving a key is what switches the API on (6.7).
 
 ### 6.6 Navigation
 
@@ -222,6 +224,25 @@ The order:
   Preview & approve, Send, Reports & history, Settings.
 - The sidebar shows the app name, and a one-line round summary under the page
   list.
+
+### 6.7 Choosing how to send (the owner's rule)
+
+- **`sending_method(conn) -> "api" | "phone"`:** returns `"api"` when a Phone Number
+  ID and an access token are both saved; otherwise `"phone"`. Settings and the Send
+  page show the result: "Sending through: WhatsApp Business API" or "Sending
+  through: your WhatsApp (desktop app)".
+- **When it's `"api"`,** the Send page opens in API mode: send all approved, retry
+  failed, the "Unknown — check" list.
+  - If the round has no template set for its exams, the Send page says so and points
+    to Settings.
+  - A small "Send from my own WhatsApp instead" switch lets the owner use the normal
+    method for this visit, for example when Meta's side is down. Both methods use
+    the same approval and send checks, so a message can't be sent twice through the
+    two of them.
+- **When it's `"phone"`,** the Send page is the normal method from 6.4, with no API
+  wording.
+- **The old `api.enabled` setting is no longer used.** Removing the saved key (a
+  "Remove API key" button) switches back to the normal method.
 
 ## 7. Build order
 
@@ -246,7 +267,9 @@ Each step is tested before the next.
 - **Accent colour:** WhatsApp-like green, `#128C7E`.
 - **The desktop app becomes the default** for "How WhatsApp opens".
 - **Home becomes the first page** after login.
-- **The API stays in the app,** hidden under Advanced, rather than being removed.
+- **The owner's rule:** API when a key is saved, otherwise the normal method. A
+  normal-method fallback stays on the Send page for when the API can't be used
+  (6.7).
 - **Foreign numbers are accepted** only when written with `+` and a country code.
 - **"Forgot to click ✅ Sent"** is handled with a hint, not a new status. The app
   can't see clicks on WhatsApp links.
