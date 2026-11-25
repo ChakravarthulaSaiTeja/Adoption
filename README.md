@@ -128,6 +128,10 @@ Nothing is ever sent just because you uploaded a file.
 - **Exam names**: which words in a test name mean "Advance Exam" or "Mains
   Exam", and their order in the message.
 - **How WhatsApp opens**: WhatsApp link, WhatsApp Web, or the desktop app.
+- **WhatsApp Business API** (optional): send all approved messages in one go
+  through Meta's official API. Setting it up takes some days; follow
+  [docs/whatsapp-api-setup.md](docs/whatsapp-api-setup.md). Until then, send
+  from your phone.
 
 ## Your data
 
@@ -147,6 +151,9 @@ Nothing is ever sent just because you uploaded a file.
   - The app remembers your choice for files with the same headers.
 - **"Messages changed since approval"**: a number or a mark changed after you
   approved. Approve those students again on Preview & approve.
+- **"Unknown — check"** (API sending only): WhatsApp didn't answer in time.
+  Check the parent's chat, then press **It arrived** or **Send again**. The app
+  never resends these by itself.
 - **A student shows "Not found on your list"**: link them by hand on Needs
   attention, or mark them "Not my student".
 

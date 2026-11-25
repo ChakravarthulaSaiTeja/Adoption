@@ -16,7 +16,7 @@ from marksapp.results import StudentResult
 from marksapp.rounds import LOCKING_STATES
 
 _ALLOWED_FROM = {
-    "sent": {"approved", "failed"},
+    "sent": {"approved", "failed", "unknown"},  # unknown → sent: the owner checked it arrived
     "failed": {"approved", "failed", "sending"},
     "sending": {"approved", "failed"},
     "accepted": {"sending"},

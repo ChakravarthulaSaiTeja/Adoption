@@ -9,6 +9,7 @@ import streamlit as st
 from marksapp import auth
 from marksapp.messages import MessageSettings, render_message
 from marksapp.results import ExamMarks, StudentResult
+from marksapp.secrets_store import load_secrets, save_secrets
 from marksapp.settings import get_setting, set_setting
 from marksapp.values import parse_mark
 
@@ -101,6 +102,48 @@ def _link_kind(conn: sqlite3.Connection) -> None:
         st.success("Saved.")
 
 
+def round_shapes(conn: sqlite3.Connection) -> list[str]:
+    """Every exam combination a round can have, in rule order: pairs first, then singles."""
+    types = [t for _, t in get_setting(conn, "exam_rules")]
+    pairs = [f"{a}+{b}" for i, a in enumerate(types) for b in types[i + 1:]]
+    return pairs + types
+
+
+def _api(conn: sqlite3.Connection) -> None:
+    st.subheader("WhatsApp Business API (optional)")
+    st.caption("Only needed to send through Meta's official API instead of your phone. "
+               "See docs/whatsapp-api-setup.md for the setup steps.")
+    api = get_setting(conn, "api")
+    secrets = load_secrets()
+    pnid = st.text_input("Phone Number ID", secrets.get("phone_number_id", ""), key="api_pnid")
+    waba = st.text_input("WhatsApp Business Account ID (optional)", secrets.get("waba_id", ""), key="api_waba")
+    token = st.text_input("Access token", "", type="password", key="api_token",
+                          help="Leave empty to keep the saved token.")
+    saved = secrets.get("access_token")
+    st.caption(f"Access token saved, ends …{saved[-4:]}" if saved else "No access token saved yet.")
+    c1, c2, c3 = st.columns(3)
+    version = c1.text_input("API version", api.get("api_version", "v24.0"), key="api_version")
+    language = c2.text_input("Template language code", api.get("language", "en"), key="api_lang")
+    pause = c3.number_input("Seconds between messages", 0.0, 60.0, float(api.get("pause_seconds", 2.0)),
+                            key="api_pause")
+    st.markdown("**Template name for each kind of round**")
+    templates = {}
+    for shape in round_shapes(conn):
+        templates[shape] = st.text_input(shape.replace("+", " + "), api.get("templates", {}).get(shape, ""),
+                                         key=f"api_tpl_{shape}").strip()
+    enabled = st.checkbox("Use the API for sending", bool(api.get("enabled")), key="api_enabled")
+    if st.button("Save API settings", key="api_save"):
+        secrets.update(phone_number_id=pnid.strip(), waba_id=waba.strip())
+        if token.strip():
+            secrets["access_token"] = token.strip()
+        save_secrets(secrets)
+        set_setting(conn, "api", {"enabled": enabled, "api_version": version.strip() or "v24.0",
+                                  "language": language.strip() or "en",
+                                  "templates": {k: v for k, v in templates.items() if v},
+                                  "pause_seconds": float(pause)})
+        st.success("API settings saved.")
+
+
 def render(conn: sqlite3.Connection) -> None:
     st.title("Settings")
     _message(conn)
@@ -108,5 +151,7 @@ def render(conn: sqlite3.Connection) -> None:
     _exam_rules(conn)
     st.divider()
     _link_kind(conn)
+    st.divider()
+    _api(conn)
     st.divider()
     _password(conn)

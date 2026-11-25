@@ -115,3 +115,14 @@ def test_phone_link():
     assert phone_link("+919876543201", "*A*\nB", "wa.me") == "https://wa.me/919876543201?text=%2AA%2A%0AB"
     assert phone_link("+919876543201", "x", "web") == "https://web.whatsapp.com/send?phone=919876543201&text=x"
     assert phone_link("+919876543201", "x", "desktop") == "whatsapp://send?phone=919876543201&text=x"
+
+
+def test_unknown_it_arrived(conn, tmp_path):
+    rid, rr = linked_round(conn, tmp_path)
+    [sid] = approve(conn, rid, _ready(rr)[:1], message_settings(conn))
+    mid = get_outbox(conn, rid)[sid].id
+    mark_sending(conn, mid)
+    mark_unknown(conn, mid, "Timed out")
+    mark_sent(conn, mid, method="api")  # owner checked WhatsApp: it arrived
+    rec = get_outbox(conn, rid)[sid]
+    assert rec.status == "sent" and rec.method == "api"
