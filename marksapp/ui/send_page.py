@@ -39,6 +39,13 @@ def next_to_send(conn: sqlite3.Connection, round_id: int,
     return (queue[0], results[queue[0].student_id]) if queue else None
 
 
+def send_totals(out: dict) -> tuple[int, int]:
+    """(sent, total) for the progress bar. Unknown and in-flight messages count as not sent yet."""
+    sent = sum(1 for r in out.values() if r.status in ("sent", "accepted"))
+    open_ = sum(1 for r in out.values() if r.status in ("approved", "failed", "unknown", "sending"))
+    return sent, sent + open_
+
+
 def _act(conn: sqlite3.Connection, action: str, message_id: int, round_id: int) -> None:
     """Button callback, bound to the message that was on screen when the buttons were drawn."""
     try:
@@ -78,9 +85,9 @@ def render(conn: sqlite3.Connection) -> None:
     results = {s.student_id: s for s in build_results(conn, round_id).students}
     queued = [r for r in out.values() if r.status in QUEUE_STATES]
     sent = [r for r in out.values() if r.status in ("sent", "accepted")]
-    total = len(sent) + len(queued)
+    n_sent, total = send_totals(out)
     if total:
-        st.progress(len(sent) / total, text=f"{len(sent)} of {total} sent")
+        st.progress(n_sent / total, text=f"{n_sent} of {total} sent")
 
     kind = get_setting(conn, "link_kind")
     if sending_method(conn) == "api":
@@ -91,6 +98,7 @@ def render(conn: sqlite3.Connection) -> None:
             shape = _missing_template(conn, results, out)
             if shape is None:
                 _api_mode(conn, round_id, get_setting(conn, "api"), results, out)
+                _unknown_list(conn, out, results)
                 _already_sent(conn, sent, results)
                 return
             st.info(f"No API template is set for {shape.replace('+', ' + ')}. Add it in Settings → "
@@ -100,6 +108,7 @@ def render(conn: sqlite3.Connection) -> None:
                     unsafe_allow_html=True)
 
     _phone_flow(conn, round_id, results, queued, kind)
+    _unknown_list(conn, out, results)
     _already_sent(conn, sent, results)
 
 
@@ -115,7 +124,10 @@ def _phone_flow(conn: sqlite3.Connection, round_id: int, results: dict, queued: 
 
     nxt = next_to_send(conn, round_id, only)
     if nxt is None:
-        st.success("Nothing left to send here. 🎉")
+        if any(r.status == "unknown" for r in get_outbox(conn, round_id).values()):
+            st.info("Nothing waiting to send — but some messages need checking below.")
+        else:
+            st.success("Nothing left to send here. 🎉")
         return
     rec, res = nxt
     with st.container(border=True):
@@ -178,7 +190,6 @@ def _run_batch(conn: sqlite3.Connection, round_id: int, ids: list[int], api: dic
 def _api_mode(conn: sqlite3.Connection, round_id: int, api: dict, results: dict, out: dict) -> None:
     approved = [r for r in out.values() if r.status == "approved" and r.student_id in results]
     failed = [r for r in out.values() if r.status == "failed" and r.student_id in results]
-    unknown = [r for r in out.values() if r.status == "unknown"]
     kind, text = st.session_state.pop("api_outcome", (None, None))
     if kind:
         (st.error if kind == "error" else st.success)(text)
@@ -202,17 +213,23 @@ def _api_mode(conn: sqlite3.Connection, round_id: int, api: dict, results: dict,
     if st.button("Send selected", key="api_send_sel", disabled=not chosen):
         _run_batch(conn, round_id, chosen, api)
 
-    if unknown:
-        st.subheader(f"Unknown — check ({len(unknown)})")
-        st.caption("WhatsApp gave no clear answer, so these may or may not have arrived. "
-                   "Check the parent's chat in WhatsApp Business before sending again.")
-        for r in unknown:
-            name = results[r.student_id].name if r.student_id in results else str(r.student_id)
-            c1, c2, c3 = st.columns([4, 1, 1])
-            c1.write(f"{name} · {pretty_phone(r.phone)}")
-            if c2.button("It arrived", key=f"arr_{r.id}"):
-                mark_sent(conn, r.id, method="api")
-                st.rerun()
-            if c3.button("Send again", key=f"res_{r.id}"):
-                reset_for_resend(conn, r.id)
-                st.rerun()
+
+def _unknown_list(conn: sqlite3.Connection, out: dict, results: dict) -> None:
+    """API messages WhatsApp gave no clear answer for. Shown whichever way the owner is sending,
+    because they must be settled either way: check the chat, then mark it arrived or send again."""
+    unknown = [r for r in out.values() if r.status == "unknown"]
+    if not unknown:
+        return
+    st.subheader(f"Unknown — check ({len(unknown)})")
+    st.caption("WhatsApp gave no clear answer for these, so they may or may not have arrived. "
+               "Check the parent's chat in WhatsApp before sending again.")
+    for r in unknown:
+        name = results[r.student_id].name if r.student_id in results else str(r.student_id)
+        c1, c2, c3 = st.columns([4, 1, 1])
+        c1.write(f"{name} · {pretty_phone(r.phone)}")
+        if c2.button("It arrived", key=f"arr_{r.id}"):
+            mark_sent(conn, r.id, method="api")
+            st.rerun()
+        if c3.button("Send again", key=f"res_{r.id}"):
+            reset_for_resend(conn, r.id)
+            st.rerun()

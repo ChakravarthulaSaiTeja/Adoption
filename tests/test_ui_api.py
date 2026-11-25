@@ -101,3 +101,31 @@ def test_settings_remove_api_key(app_env, conn):
     at = _at("settings_page").run(timeout=30)
     at.button(key="api_remove").click().run(timeout=30)
     assert not at.exception and sending_method(conn) == "phone"
+
+
+def _make_unknown(conn, rid):
+    from marksapp.outbox import get_outbox, mark_sending, mark_unknown
+    rec = sorted(get_outbox(conn, rid).values(), key=lambda r: r.id)[0]
+    mark_sending(conn, rec.id)
+    mark_unknown(conn, rec.id, "No clear answer")
+    return rec
+
+
+def test_unknown_messages_visible_without_api_key(app_env, conn, tmp_path):
+    rid = _approved_round(conn, tmp_path)
+    rec = _make_unknown(conn, rid)
+    at = _at("send_page").run(timeout=30)
+    assert not at.exception and f"arr_{rec.id}" in _keys(at) and f"res_{rec.id}" in _keys(at)
+    from marksapp.outbox import get_outbox
+    from marksapp.ui.send_page import send_totals
+    assert send_totals(get_outbox(conn, rid)) == (0, 5)  # 5 approved; the unknown one counts as not sent
+
+
+def test_unknown_messages_visible_with_phone_toggle(app_env, conn, tmp_path):
+    save_secrets({"phone_number_id": "1", "access_token": "T"})
+    _set_templates(conn)
+    rid = _approved_round(conn, tmp_path)
+    rec = _make_unknown(conn, rid)
+    at = _at("send_page").run(timeout=30)
+    at.toggle(key="use_phone_instead").set_value(True).run(timeout=30)
+    assert not at.exception and f"arr_{rec.id}" in _keys(at)
