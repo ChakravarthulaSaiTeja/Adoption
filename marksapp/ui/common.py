@@ -61,3 +61,16 @@ def pick_round(conn: sqlite3.Connection, key: str) -> int | None:
         return None
     labels = {r["id"]: f"{r['label']} (started {r['created_at'][:10]})" for r in rounds}
     return st.selectbox("Round", list(labels), format_func=labels.get, key=key)
+
+
+def sidebar_summary(conn: sqlite3.Connection) -> None:
+    """The app name and the latest round's progress, under the page list."""
+    from marksapp.outbox import get_outbox
+    rounds = list_rounds(conn)
+    with st.sidebar:
+        st.markdown('<div class="app-name">📨 Marks to Parents</div>', unsafe_allow_html=True)
+        if rounds:
+            out = get_outbox(conn, rounds[0]["id"])
+            sent = sum(1 for r in out.values() if r.status in ("sent", "accepted"))
+            waiting = sum(1 for r in out.values() if r.status in ("approved", "failed"))
+            st.caption(f"{rounds[0]['label']}: {sent} sent · {waiting} waiting")
