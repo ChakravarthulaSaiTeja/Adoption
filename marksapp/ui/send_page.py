@@ -6,7 +6,7 @@ import sqlite3
 import streamlit as st
 
 from marksapp.messages import message_settings
-from marksapp.outbox import (OutboxRec, check_current, get_outbox, mark_failed, mark_sent, phone_link,
+from marksapp.outbox import (OutboxRec, check_current, drop_stale_approvals, get_outbox, mark_failed, mark_sent, phone_link,
                              reset_for_resend, skip)
 from marksapp.phones import pretty_phone
 from marksapp.results import StudentResult, build_results
@@ -18,15 +18,7 @@ from marksapp.ui.common import pick_round
 QUEUE_STATES = ("approved", "failed")
 
 
-def drop_stale(conn: sqlite3.Connection, round_id: int) -> int:
-    """Drop every approval whose number or text no longer matches. Returns how many."""
-    ms = message_settings(conn)
-    results = {s.student_id: s for s in build_results(conn, round_id).students}
-    dropped = 0
-    for rec in get_outbox(conn, round_id).values():
-        if rec.status in QUEUE_STATES and not check_current(conn, rec, results.get(rec.student_id), ms):
-            dropped += 1
-    return dropped
+drop_stale = drop_stale_approvals  # kept for older callers
 
 
 def next_to_send(conn: sqlite3.Connection, round_id: int,

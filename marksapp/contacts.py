@@ -201,7 +201,8 @@ def update_student(conn: sqlite3.Connection, student_id: int, **fields) -> None:
         conn.execute(f"UPDATE students SET {', '.join(f'{k} = ?' for k in updates)} WHERE id = ?",
                      (*updates.values(), student_id))
         audit.log(conn, "student_updated", student_id=student_id, fields=sorted(fields),
-                  old_phone=current["phone"], new_phone=updates.get("phone", current["phone"]))
+                  old_phone=current["phone"], new_phone=updates.get("phone", current["phone"]),
+                  old_stud_id=current["stud_id"], new_stud_id=updates.get("stud_id", current["stud_id"]))
 
 
 def list_students(conn: sqlite3.Connection, include_inactive: bool = False) -> list[sqlite3.Row]:

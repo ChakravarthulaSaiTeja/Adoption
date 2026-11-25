@@ -81,3 +81,12 @@ def test_add_student(conn):
     assert list_students(conn)[0]["id"] == sid
     with pytest.raises(ValueError):
         add_student(conn, "Bad Number", "12")
+
+
+def test_unlink_audit_records_ids(conn, tmp_path):
+    import json
+    ids = seed_contacts(conn, tmp_path)
+    update_student(conn, ids["Syed Afreen"], stud_id="5")
+    update_student(conn, ids["Syed Afreen"], stud_id=None)
+    d = json.loads(audit.recent(conn)[0]["details"])
+    assert (d["old_stud_id"], d["new_stud_id"]) == ("5", None)

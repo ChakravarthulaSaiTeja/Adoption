@@ -121,8 +121,17 @@ def _move(conn: sqlite3.Connection, message_id: int, new: str, *, count_attempt:
         else:
             sets.append(f"{k} = ?")
             values.append(v)
+    allowed = sorted(_ALLOWED_FROM[new])
     with conn:
-        conn.execute(f"UPDATE messages SET {', '.join(sets)} WHERE id = ?", (*values, message_id))
+        # The status check is part of the write, so another session can't slip in between.
+        cur = conn.execute(f"UPDATE messages SET {', '.join(sets)} WHERE id = ? AND status = ? "
+                           f"AND status IN ({','.join('?' * len(allowed))})",
+                           (*values, message_id, old, *allowed))
+        if cur.rowcount == 0:
+            now = conn.execute("SELECT status FROM messages WHERE id = ?", (message_id,)).fetchone()
+            if now is None:
+                raise ValueError("Message not found — approve it first")
+            raise ValueError(f"Cannot go from {now['status']} to {new}")
         extra = {}
         if new in ("sent", "accepted"):
             # Permanent history of what actually went out: never deleted or overwritten.
@@ -185,3 +194,16 @@ def phone_link(phone_e164: str, body: str, kind: str) -> str:
     if kind == "desktop":
         return f"whatsapp://send?phone={digits}&text={text}"
     return f"https://wa.me/{digits}?text={text}"
+
+
+def drop_stale_approvals(conn: sqlite3.Connection, round_id: int) -> int:
+    """Drop every waiting approval whose number or text no longer matches. Returns how many."""
+    from marksapp.messages import message_settings
+    from marksapp.results import build_results
+    ms = message_settings(conn)
+    results = {s.student_id: s for s in build_results(conn, round_id).students}
+    dropped = 0
+    for rec in get_outbox(conn, round_id).values():
+        if rec.status in ("approved", "failed") and not check_current(conn, rec, results.get(rec.student_id), ms):
+            dropped += 1
+    return dropped

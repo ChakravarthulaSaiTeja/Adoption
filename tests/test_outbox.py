@@ -126,3 +126,47 @@ def test_unknown_it_arrived(conn, tmp_path):
     mark_sent(conn, mid, method="api")  # owner checked WhatsApp: it arrived
     rec = get_outbox(conn, rid)[sid]
     assert rec.status == "sent" and rec.method == "api"
+
+
+def test_move_is_atomic_against_a_stale_reader(conn, tmp_path):
+    """Another session sends the message between this session's read and its write."""
+    import sqlite3
+
+    from marksapp.db import connect, data_dir
+    rid, rr = linked_round(conn, tmp_path)
+    [sid] = approve(conn, rid, _ready(rr)[:1], message_settings(conn))
+    mid = get_outbox(conn, rid)[sid].id
+
+    class _Rows:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def fetchone(self):
+            return self.rows[0] if self.rows else None
+
+    class Racy(sqlite3.Connection):
+        raced = False
+
+        def execute(self, sql, *args):
+            if sql.startswith("SELECT status") and not Racy.raced:
+                rows = super().execute(sql, *args).fetchall()  # this session reads "approved"…
+                Racy.raced = True
+                mark_sent(connect(), mid)                        # …then another session sends it
+                return _Rows(rows)
+            return super().execute(sql, *args)
+
+    racy = sqlite3.connect(data_dir() / "marks.db", factory=Racy)
+    racy.row_factory = sqlite3.Row
+    with pytest.raises(ValueError):
+        mark_sent(racy, mid)
+    assert conn.execute("select attempts from messages where id=?", (mid,)).fetchone()[0] == 1
+    assert conn.execute("select count(*) from sent_log where message_id=?", (mid,)).fetchone()[0] == 1
+
+
+def test_drop_stale_approvals_counts(conn, tmp_path):
+    from marksapp.outbox import drop_stale_approvals
+    rid, rr = linked_round(conn, tmp_path)
+    a, b = approve(conn, rid, _ready(rr)[:2], message_settings(conn))
+    assert drop_stale_approvals(conn, rid) == 0
+    update_student(conn, a, phone="9000000001")
+    assert drop_stale_approvals(conn, rid) == 1 and set(get_outbox(conn, rid)) == {b}
