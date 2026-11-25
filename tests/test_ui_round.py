@@ -73,3 +73,18 @@ def test_start_round_switches_to_new_round(app_env, conn):
     assert not at.exception
     assert conn.execute("select count(*) from rounds").fetchone()[0] == 1
     assert "Add files" in [h.value for h in at.subheader]
+
+
+def test_not_found_link_has_no_preselected_student(app_env, conn, tmp_path):
+    from marksapp.contacts import add_student
+    extra = add_student(conn, "Extra Student", "9876543300")
+    seed_round(conn, tmp_path, mains=False)
+    at = AppTest.from_function(attention_script).run(timeout=30)
+    assert not at.exception
+    assert at.selectbox(key="ln_100000001").value is None
+    assert at.button(key="lnb_100000001").disabled
+    at.selectbox(key="ln_100000001").set_value(extra).run(timeout=30)
+    assert at.button(key="lnb_100000001").disabled  # still needs the explicit confirmation
+    at.checkbox(key="lnc_100000001").check().run(timeout=30)
+    at.button(key="lnb_100000001").click().run(timeout=30)
+    assert conn.execute("select stud_id from students where id=?", (extra,)).fetchone()[0] == "100000001"

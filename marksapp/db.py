@@ -6,6 +6,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+APP_DIR = Path(__file__).resolve().parent.parent
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS students (
@@ -41,13 +43,17 @@ CREATE TABLE IF NOT EXISTS messages (
   body_hash TEXT NOT NULL, status TEXT NOT NULL, method TEXT, api_message_id TEXT, error TEXT,
   approved_at TEXT, sent_at TEXT, attempts INTEGER NOT NULL DEFAULT 0,
   UNIQUE(round_id, student_id));
+CREATE TABLE IF NOT EXISTS sent_log (
+  id INTEGER PRIMARY KEY, message_id INTEGER, round_id INTEGER NOT NULL, student_id INTEGER NOT NULL,
+  phone TEXT NOT NULL, body TEXT NOT NULL, method TEXT, api_message_id TEXT, sent_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY, ts TEXT NOT NULL, action TEXT NOT NULL, details TEXT NOT NULL);
 """
 
 
 def data_dir() -> Path:
-    path = Path(os.environ.get("MARKSAPP_DATA_DIR") or Path.cwd() / "data")
+    # Default: the data folder next to the app, whichever folder the app was started from.
+    path = Path(os.environ.get("MARKSAPP_DATA_DIR") or APP_DIR / "data")
     path.mkdir(parents=True, exist_ok=True)
     return path
 

@@ -24,7 +24,7 @@ _LABELS = {
     "physics": {"PHY", "PHYSICS"},
     "chemistry": {"CHE", "CHEM", "CHEMISTRY"},
 }
-_ID_SHAPE = re.compile(r"^[A-Za-z0-9/\-]{3,}$")
+_ID_SHAPE = re.compile(r"^[A-Za-z0-9/\-]+$")  # any length: roll numbers can be 1, 2, ...
 _TEST_NAME = re.compile(r"^test\s*name\s*[:\-]?\s*(.*)$", re.IGNORECASE)
 _TEST_DATE = re.compile(r"^test\s*date\s*[:\-]?\s*(.*)$", re.IGNORECASE)
 _NUMBER = re.compile(r"^\d+(\.\d+)?$")
@@ -193,7 +193,9 @@ def parse_marks_grid(grid: Grid, column_map: dict[str, int] | None = None,
                 chemistry=parse_mark(get("chemistry")),
                 total_in_file=parse_mark(get("total")) if "total" in cm else NA,
             ))
-        elif in_data:
+        else:
+            if not in_data and not _cell(row, cm["stud_id"]).strip() and not _cell(row, cm["name"]).strip():
+                continue  # part of the header (max marks, sub-headings): no ID and no name
             sid = clean_id(_cell(row, cm["stud_id"]))
             ok_id = bool(_ID_SHAPE.match(sid) and any(ch.isdigit() for ch in sid))
             parsed.unreadable.append(UnreadableRow(

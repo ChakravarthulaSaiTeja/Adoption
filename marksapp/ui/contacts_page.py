@@ -6,8 +6,9 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from marksapp.contacts import (add_student, apply_contact_diff, detect_contact_columns, diff_contacts,
-                               list_students, parse_contacts, shared_number_groups, update_student)
+from marksapp.contacts import (add_student, apply_contact_diff, confirm_shared_number, detect_contact_columns,
+                               diff_contacts, list_students, parse_contacts, shared_number_groups,
+                               unconfirmed_shared_numbers, update_student)
 from marksapp.phones import pretty_phone
 from marksapp.readers.grid import NoTextInPdf, UnsupportedFile, file_hash, load_grid
 from marksapp.settings import get_setting
@@ -61,7 +62,8 @@ def _upload(conn: sqlite3.Connection) -> None:
     m[0].metric("New students", len(d.new))
     m[1].metric("Changed numbers", len(d.phone_changed))
     m[2].metric("Will become inactive", len(d.missing))
-    m[3].metric("Need attention", len(d.duplicate_names) + len(d.invalid) + len(d.bad_numbers))
+    m[3].metric("Need attention", len(d.duplicate_names) + len(d.invalid) + len(d.bad_numbers)
+                + len(d.shared_numbers))
     names = {s["id"]: s["name"] for s in list_students(conn, include_inactive=True)}
     if d.new:
         with st.expander(f"New students ({len(d.new)})"):
@@ -92,7 +94,8 @@ def _upload(conn: sqlite3.Connection) -> None:
             st.caption("New students are saved without a number; fix it below. "
                        "A saved valid number is never replaced by a bad one.")
     if d.shared_numbers:
-        with st.expander(f"Shared numbers ({len(d.shared_numbers)})"):
+        with st.expander(f"Same number for more than one student ({len(d.shared_numbers)}) — "
+                         "you'll be asked to confirm each", expanded=True):
             for group in d.shared_numbers:
                 st.write(" & ".join(group))
     if st.button("Apply changes", type="primary", key="contacts_apply"):
@@ -111,12 +114,20 @@ def _student_list(conn: sqlite3.Connection) -> None:
         "File ID": s["stud_id"] or "", "Section": s["section"] or "",
         "Active": "Yes" if s["active"] else "No"} for s in students]), hide_index=True)
 
-    groups = shared_number_groups(conn)
-    if groups and not get_setting(conn, "message")["include_name"]:
-        pairs = "; ".join(" & ".join(s["name"] for s in g) for g in groups)
-        st.warning(f"Some parents have more than one child on the list ({pairs}). Turn on "
-                   "'Start each message with the student's name' in Settings so they can tell "
-                   "the messages apart.")
+    unconfirmed = unconfirmed_shared_numbers(conn)
+    if unconfirmed:
+        st.warning("Some WhatsApp numbers are used for more than one student. If they are brothers or "
+                   "sisters, some parents have more than one child on the list: confirm it below. If not, "
+                   "fix the wrong number. Until you do, these students' messages can't be approved.")
+        for g in unconfirmed:
+            c1, c2 = st.columns([4, 1])
+            c1.write(f"{pretty_phone(g[0]['phone'])}: " + " & ".join(s["name"] for s in g))
+            if c2.button("Yes, same parent", key=f"shared_ok_{g[0]['phone']}"):
+                confirm_shared_number(conn, g[0]["phone"])
+                st.rerun()
+    if shared_number_groups(conn) and not get_setting(conn, "message")["include_name"]:
+        st.info("Tip: when a parent has more than one child on the list, turn on 'Start each message "
+                "with the student's name' in Settings so they can tell the messages apart.")
 
     everyone = list_students(conn, include_inactive=True)
     if everyone:

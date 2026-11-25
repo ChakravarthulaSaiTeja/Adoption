@@ -144,3 +144,17 @@ def test_set_total_choice_and_edit_mark(conn, tmp_path):
     set_total_choice(conn, row_id, "sum")
     s = next(x for x in build_results(conn, rid).students if x.name == "Syed Afreen")
     assert s.status == "ready" and s.exams[0].total.display() == "25"
+
+
+def test_shared_number_blocks_until_owner_confirms(conn, tmp_path):
+    from marksapp.contacts import confirm_shared_number
+    from tests.helpers import linked_round
+    rid, rr = linked_round(conn, tmp_path)
+    nakka = [s for s in rr.students if s.name.startswith("Nakka")]
+    assert len(nakka) == 2 and all(s.blocking and "shared_phone" in codes(s.issues) for s in nakka)
+    confirm_shared_number(conn, "+919876543205")
+    nakka = [s for s in build_results(conn, rid).students if s.name.startswith("Nakka")]
+    assert all(s.status == "ready" for s in nakka)
+    add_student(conn, "Someone Else", "9876543205")  # a third student on the same number
+    nakka = [s for s in build_results(conn, rid).students if s.name.startswith("Nakka")]
+    assert all(s.blocking for s in nakka)

@@ -11,6 +11,11 @@ from marksapp.db import connect
 from marksapp.rounds import list_rounds
 
 
+def server_is_local() -> bool:
+    """True only when the app listens on this computer alone (set in .streamlit/config.toml)."""
+    return st.get_option("server.address") in ("127.0.0.1", "localhost", "::1")
+
+
 def get_conn() -> sqlite3.Connection:
     if "conn" not in st.session_state:
         st.session_state["conn"] = connect(check_same_thread=False)

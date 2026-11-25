@@ -56,9 +56,23 @@ def test_send_page_marks_sent(app_env, conn, tmp_path):
     approve(conn, rid, rr.students, message_settings(conn))
     at = _at("send_page").run(timeout=30)
     assert not at.exception
-    at.button(key="mark_sent").click().run(timeout=30)
+    [btn] = [b for b in at.button if (b.key or "").startswith("mark_sent_")]
+    btn.click().run(timeout=30)
     assert not at.exception
     assert [r.status for r in get_outbox(conn, rid).values()].count("sent") == 1
+
+
+def test_send_buttons_act_on_the_student_shown(app_env, conn, tmp_path):
+    rid, rr = linked_round(conn, tmp_path)
+    ready = sorted((s for s in rr.students if s.status == "ready"), key=lambda s: s.name)
+    first, rest = ready[0], ready[1:]
+    approve(conn, rid, rest, message_settings(conn))
+    at = _at("send_page").run(timeout=30)
+    shown = get_outbox(conn, rid)[rest[0].student_id]
+    approve(conn, rid, [first], message_settings(conn))  # meanwhile someone approves a student who sorts first
+    at.button(key=f"mark_sent_{shown.id}").click().run(timeout=30)
+    out = get_outbox(conn, rid)
+    assert out[rest[0].student_id].status == "sent" and out[first.student_id].status == "approved"
 
 
 def test_reports_page_renders(app_env, conn, tmp_path):

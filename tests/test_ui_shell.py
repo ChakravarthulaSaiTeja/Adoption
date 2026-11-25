@@ -59,3 +59,18 @@ def test_app_file_starts_at_login(app_env):
     at = AppTest.from_file("../app.py").run(timeout=30)
     assert not at.exception
     assert "Set a password" in [h.value for h in at.subheader]
+
+
+def test_contacts_page_confirms_shared_number(app_env, conn, tmp_path):
+    from marksapp.contacts import unconfirmed_shared_numbers
+    seed_contacts(conn, tmp_path)
+    at = AppTest.from_function(contacts_script).run(timeout=30)
+    at.button(key="shared_ok_+919876543205").click().run(timeout=30)
+    assert not at.exception and unconfirmed_shared_numbers(conn) == []
+
+
+def test_server_must_be_local_only(monkeypatch):
+    from marksapp.ui import common
+    for address, ok in [(None, False), ("", False), ("0.0.0.0", False), ("127.0.0.1", True), ("localhost", True)]:
+        monkeypatch.setattr(common.st, "get_option", lambda key, a=address: a)
+        assert common.server_is_local() is ok, address

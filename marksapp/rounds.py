@@ -216,9 +216,16 @@ def confirm_links(conn: sqlite3.Connection, links: list[tuple[str, int, str]]) -
 
 
 def accept_name(conn: sqlite3.Connection, student_id: int, name_in_file: str) -> None:
+    """Remember one more spelling of this student's name as used in marks files."""
+    row = conn.execute("SELECT name_in_marks FROM students WHERE id = ?", (student_id,)).fetchone()
+    if row is None:
+        raise ValueError("Student not found")
+    names = [n for n in (row["name_in_marks"] or "").split("\n") if n]
+    if name_in_file not in names:
+        names.append(name_in_file)
     with conn:
         conn.execute("UPDATE students SET name_in_marks = ?, updated_at = ? WHERE id = ?",
-                     (name_in_file, now_iso(), student_id))
+                     ("\n".join(names), now_iso(), student_id))
         audit.log(conn, "name_accepted", student_id=student_id, name_in_file=name_in_file)
 
 

@@ -42,3 +42,35 @@ def test_message_log(conn, tmp_path):
     log = message_log(conn, sid)
     assert list(log.columns) == ["Round", "Status", "WhatsApp", "Method", "Sent at", "Message"]
     assert log.iloc[0]["Status"] == "Sent"
+
+
+def test_sent_record_survives_resend_and_change(conn, tmp_path):
+    from marksapp.contacts import update_student
+    from marksapp.outbox import check_current, reset_for_resend
+    from marksapp.results import build_results
+    rid, rr = linked_round(conn, tmp_path)
+    s = next(x for x in rr.students if x.status == "ready")
+    ms = message_settings(conn)
+    approve(conn, rid, [s], ms)
+    rec = get_outbox(conn, rid)[s.student_id]
+    mark_sent(conn, rec.id)
+    reset_for_resend(conn, rec.id)
+    update_student(conn, s.student_id, phone="9000000001")
+    fresh = next(x for x in build_results(conn, rid).students if x.student_id == s.student_id)
+    assert check_current(conn, get_outbox(conn, rid)[s.student_id], fresh, ms) is False
+    log = message_log(conn, s.student_id)
+    sent = log[log["Status"] == "Sent"]
+    assert len(sent) == 1 and sent.iloc[0]["WhatsApp"] == "+91 " + s.phone[3:8] + " " + s.phone[8:]
+    assert sent.iloc[0]["Message"] == rec.body
+
+
+def test_report_keeps_sent_student_after_unlink(conn, tmp_path):
+    from marksapp.contacts import update_student
+    rid, rr = linked_round(conn, tmp_path)
+    s = next(x for x in rr.students if x.status == "ready")
+    approve(conn, rid, [s], message_settings(conn))
+    mark_sent(conn, get_outbox(conn, rid)[s.student_id].id)
+    update_student(conn, s.student_id, stud_id=None)
+    df = round_report(conn, rid)
+    row = df[df["Student"] == s.name]
+    assert len(row) == 1 and row.iloc[0]["Status"] == "Sent"

@@ -123,8 +123,17 @@ def _move(conn: sqlite3.Connection, message_id: int, new: str, *, count_attempt:
             values.append(v)
     with conn:
         conn.execute(f"UPDATE messages SET {', '.join(sets)} WHERE id = ?", (*values, message_id))
+        extra = {}
+        if new in ("sent", "accepted"):
+            # Permanent history of what actually went out: never deleted or overwritten.
+            m = conn.execute("SELECT * FROM messages WHERE id = ?", (message_id,)).fetchone()
+            conn.execute("INSERT INTO sent_log(message_id, round_id, student_id, phone, body, method, "
+                         "api_message_id, sent_at) VALUES (?,?,?,?,?,?,?,?)",
+                         (message_id, m["round_id"], m["student_id"], m["phone"], m["body"], m["method"],
+                          m["api_message_id"], m["sent_at"] or now_iso()))
+            extra = {"phone": m["phone"], "body_hash": m["body_hash"]}
         audit.log(conn, f"message_{new}", message_id=message_id, round_id=row["round_id"],
-                  student_id=row["student_id"], previous=old,
+                  student_id=row["student_id"], previous=old, **extra,
                   **{k: v for k, v in updates.items() if k != "attempts"})
 
 

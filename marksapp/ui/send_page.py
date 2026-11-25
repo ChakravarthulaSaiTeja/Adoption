@@ -40,8 +40,25 @@ def next_to_send(conn: sqlite3.Connection, round_id: int,
     return (queue[0], results[queue[0].student_id]) if queue else None
 
 
+def _act(conn: sqlite3.Connection, action: str, message_id: int, round_id: int) -> None:
+    try:
+        if action == "sent":
+            mark_sent(conn, message_id)
+        elif action == "failed":
+            reason = (st.session_state.get(f"fail_reason_{message_id}") or "").strip()
+            mark_failed(conn, message_id, reason or "Couldn't send")
+        else:
+            row = conn.execute("SELECT student_id FROM messages WHERE id = ?", (message_id,)).fetchone()
+            if row is not None:
+                skip(conn, round_id, [row["student_id"]])
+    except ValueError as e:
+        st.session_state["send_error"] = str(e)
+
+
 def render(conn: sqlite3.Connection) -> None:
     st.title("Send")
+    if "send_error" in st.session_state:
+        st.error(st.session_state.pop("send_error"))
     round_id = pick_round(conn, key="send_round")
     if round_id is None:
         return
@@ -86,16 +103,14 @@ def render(conn: sqlite3.Connection) -> None:
                            type="primary")
             st.caption("WhatsApp opens with the message typed. Press Send there, then come back and confirm.")
             c1, c2, c3 = st.columns(3)
-            if c1.button("✅ Sent", key="mark_sent"):
-                mark_sent(conn, rec.id)
-                st.rerun()
-            reason = c2.text_input("Reason (if it didn't send)", key="fail_reason")
-            if c2.button("Couldn't send", key="mark_failed"):
-                mark_failed(conn, rec.id, reason.strip() or "Couldn't send")
-                st.rerun()
-            if c3.button("Skip this student", key="skip_this"):
-                skip(conn, round_id, [rec.student_id])
-                st.rerun()
+            # The action is bound to this message when the buttons are drawn (callback args), so a
+            # click always applies to the student that was on screen, even if the queue changed.
+            c1.button("✅ Sent", key=f"mark_sent_{rec.id}", on_click=_act, args=(conn, "sent", rec.id, round_id))
+            c2.text_input("Reason (if it didn't send)", key=f"fail_reason_{rec.id}")
+            c2.button("Couldn't send", key=f"mark_failed_{rec.id}", on_click=_act,
+                      args=(conn, "failed", rec.id, round_id))
+            c3.button("Skip this student", key=f"skip_this_{rec.id}", on_click=_act,
+                      args=(conn, "skip", rec.id, round_id))
 
     if sent:
         with st.expander(f"Already sent ({len(sent)})"):

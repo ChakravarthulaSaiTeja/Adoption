@@ -214,3 +214,27 @@ def shared_number_groups(conn: sqlite3.Connection) -> list[list[sqlite3.Row]]:
     for s in conn.execute("SELECT * FROM students WHERE active = 1 AND phone IS NOT NULL ORDER BY name"):
         groups[s["phone"]].append(s)
     return [g for g in groups.values() if len(g) > 1]
+
+
+def _shared_ok(conn: sqlite3.Connection) -> dict[str, list[int]]:
+    from marksapp.settings import get_setting
+    return get_setting(conn, "shared_numbers_ok") or {}
+
+
+def unconfirmed_shared_numbers(conn: sqlite3.Connection) -> list[list[sqlite3.Row]]:
+    """Numbers used by two or more active students that the owner hasn't confirmed as one parent.
+    A confirmation covers exactly the students sharing the number at the time; adding another
+    student to that number makes it unconfirmed again."""
+    ok = _shared_ok(conn)
+    return [g for g in shared_number_groups(conn)
+            if ok.get(g[0]["phone"]) != sorted(s["id"] for s in g)]
+
+
+def confirm_shared_number(conn: sqlite3.Connection, phone: str) -> None:
+    from marksapp.settings import set_setting
+    ids = sorted(s["id"] for s in conn.execute(
+        "SELECT id FROM students WHERE active = 1 AND phone = ?", (phone,)))
+    ok = _shared_ok(conn)
+    ok[phone] = ids
+    set_setting(conn, "shared_numbers_ok", ok)
+    audit.log(conn, "shared_number_confirmed", phone=phone, student_ids=ids)

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from marksapp import audit
+from marksapp.contacts import unconfirmed_shared_numbers
 from marksapp.matching import MatchResult
 from marksapp.rounds import ExamRec, MarkRowRec, list_exams, match_round, round_rows
 from marksapp.values import AB, NA, Mark, decode_mark, parse_mark
@@ -64,6 +65,7 @@ class RoundResults:
     ignored: list[MatchResult]
     not_in_any_file: list[sqlite3.Row]
     unreadable: list[sqlite3.Row]
+    name_flags: dict[int, list[str]] = field(default_factory=dict)  # student → names in files that differ
 
 
 def _fmt(v: float | None) -> str:
@@ -140,6 +142,8 @@ def build_results(conn: sqlite3.Connection, round_id: int) -> RoundResults:
     review_by_student = {m.student_id: m for m in matches
                          if m.status == "review" and m.stud_id in linked_ids}
     ocr_exams = {e.id for e in exams if e.via_ocr}
+    shared: dict[str, list[str]] = {g[0]["phone"]: [x["name"] for x in g]
+                                    for g in unconfirmed_shared_numbers(conn)}
 
     results: list[StudentResult] = []
     for s in students if exams else []:
@@ -156,6 +160,10 @@ def build_results(conn: sqlite3.Connection, round_id: int) -> RoundResults:
             issues.append(Issue("inactive", "Student is marked inactive — reactivate in Contacts to send", True))
         if not s["phone"]:
             issues.append(Issue("no_phone", "No valid WhatsApp number", True))
+        elif s["phone"] in shared:
+            others = ", ".join(n for n in shared[s["phone"]] if n != s["name"])
+            issues.append(Issue("shared_phone", f"Same WhatsApp number as {others} — confirm on Contacts "
+                                                "that they share a parent", True))
         if any(e.id in ocr_exams and e.id in rows for e in exams):
             issues.append(Issue("ocr", "Read from a scanned PDF — check every mark against the file", False))
         for em in exam_marks:
@@ -177,6 +185,7 @@ def build_results(conn: sqlite3.Connection, round_id: int) -> RoundResults:
         ignored=[m for m in matches if m.status == "ignored"],
         not_in_any_file=not_in_any_file,
         unreadable=unreadable,
+        name_flags={sid: m.flagged_names for sid, m in review_by_student.items() if m.flagged_names},
     )
 
 

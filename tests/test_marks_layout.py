@@ -82,3 +82,26 @@ def test_signature_stable():
     a = parse_marks_grid(builders.marks_grid()).header_signature
     b = parse_marks_grid(builders.marks_grid(test_name="JEE(Main)/WTM-4")).header_signature
     assert a == b
+
+
+def test_bad_first_student_row_is_unreadable_not_dropped():
+    g = builders.marks_grid()
+    g[6][0] = ""  # first student's ID lost (e.g. by OCR)
+    f = parse_marks_grid(g)
+    assert len(f.rows) == 7
+    assert [(u.reason, "PALLAPU MEGHANA SRI" in u.raw_text) for u in f.unreadable] == [("No student ID", True)]
+
+
+def test_bad_first_row_after_repeated_header_is_unreadable():
+    g = builders.marks_grid(repeat_header_after=4)
+    first_after = next(i for i in range(7, len(g)) if g[i - 2][0] == "STUD_ID")
+    g[first_after][0] = "??"
+    f = parse_marks_grid(g)
+    assert len(f.rows) == 7 and [u.reason for u in f.unreadable] == ["No student ID"]
+
+
+def test_short_roll_numbers_are_read():
+    g = [["ROLL NO", "NAME", "MAT", "PHY", "CHE", "TOT"]]
+    g += [[str(i), f"STUDENT {chr(65 + i % 26)}{i}", "10", "10", "10", "30"] for i in range(1, 106)]
+    f = parse_marks_grid(g)
+    assert len(f.rows) == 105 and f.unreadable == [] and f.rows[0].stud_id == "1"

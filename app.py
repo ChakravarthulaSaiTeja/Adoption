@@ -4,9 +4,13 @@ import streamlit as st
 from marksapp.outbox import recover_interrupted
 from marksapp.ui import (attention_page, contacts_page, preview_page, reports_page, round_page,
                          send_page, settings_page)
-from marksapp.ui.common import get_conn, login_gate
+from marksapp.ui.common import get_conn, login_gate, server_is_local
 
 st.set_page_config(page_title="Marks to Parents", layout="wide")
+if not server_is_local():
+    st.error("For privacy, this app must only be reachable from this computer. Close it and start it "
+             "again from the app's own folder (where app.py is), with:  streamlit run app.py")
+    st.stop()
 conn = get_conn()
 if not st.session_state.get("recovered"):
     recover_interrupted(conn)

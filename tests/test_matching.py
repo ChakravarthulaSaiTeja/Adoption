@@ -97,3 +97,11 @@ def test_one_student_never_holds_two_results():
     rows = [R("1", "SYED AFREEN"), R("5", "NAKKA RAVI TEJA"), R("8", "AFREEN SYED", row=3)]
     held = [m.student_id for m in match_rows(rows, students, set()) if m.status in ("proposed", "linked")]
     assert len(held) == len(set(held))
+
+
+def test_same_name_as_a_linked_row_is_never_proposed():
+    rows = [R("500", "RAHUL KUMAR", row=1), R("900", "RAHUL KUMAR", row=2)]
+    students = [S(1, "Rahul Kumar", "500"), S(2, "Rahul Kumar")]
+    by_id = {m.stud_id: m for m in match_rows(rows, students, set())}
+    assert by_id["500"].status == "linked"
+    assert by_id["900"].status == "review" and by_id["900"].student_id is None

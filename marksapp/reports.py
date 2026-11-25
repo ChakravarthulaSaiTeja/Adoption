@@ -19,9 +19,26 @@ LOG_COLUMNS = ["Round", "Status", "WhatsApp", "Method", "Sent at", "Message"]
 
 
 def round_report(conn: sqlite3.Connection, round_id: int) -> pd.DataFrame:
+    """Every student in the round's results, plus anyone who has a message or a send record in
+    this round even if they are no longer linked (so nothing that was sent drops out)."""
     out = get_outbox(conn, round_id)
     rows = []
-    for s in build_results(conn, round_id).students:
+    students = build_results(conn, round_id).students
+    in_results = {s.student_id for s in students}
+    sent_before = {r["student_id"]: r for r in conn.execute(
+        "SELECT * FROM sent_log WHERE round_id = ? ORDER BY id", (round_id,))}
+    for sid in sorted((set(out) | set(sent_before)) - in_results):
+        rec, last = out.get(sid), sent_before.get(sid)
+        name = conn.execute("SELECT name FROM students WHERE id = ?", (sid,)).fetchone()
+        status = STATUS_LABELS.get(rec.status, rec.status) if rec else "Sent"
+        rows.append({
+            "Student": name["name"] if name else f"Student {sid}",
+            "WhatsApp": pretty_phone((rec.phone if rec and rec.phone else (last["phone"] if last else "")) or ""),
+            "Status": status, "Method": (rec.method if rec else last["method"]) or "",
+            "Sent at": (rec.sent_at if rec else last["sent_at"]) or "",
+            "Attempts": rec.attempts if rec else 1, "Error": (rec.error if rec else "") or "",
+        })
+    for s in students:
         rec = out.get(s.student_id)
         rows.append({
             "Student": s.name,
@@ -67,10 +84,18 @@ def student_history(conn: sqlite3.Connection, student_id: int) -> pd.DataFrame:
 
 
 def message_log(conn: sqlite3.Connection, student_id: int) -> pd.DataFrame:
-    rows = conn.execute(
+    """Every message actually sent (from the permanent send history), newest first, plus any
+    message still waiting, failed or unknown."""
+    sent = conn.execute(
+        "SELECT l.*, r.label AS round_label FROM sent_log l JOIN rounds r ON r.id = l.round_id "
+        "WHERE l.student_id = ? ORDER BY l.id DESC", (student_id,)).fetchall()
+    open_ = conn.execute(
         "SELECT m.*, r.label AS round_label FROM messages m JOIN rounds r ON r.id = m.round_id "
-        "WHERE m.student_id = ? ORDER BY m.id DESC", (student_id,)).fetchall()
-    return pd.DataFrame([{
-        "Round": r["round_label"], "Status": STATUS_LABELS.get(r["status"], r["status"]),
-        "WhatsApp": pretty_phone(r["phone"] or ""), "Method": r["method"] or "",
-        "Sent at": r["sent_at"] or "", "Message": r["body"]} for r in rows], columns=LOG_COLUMNS)
+        "WHERE m.student_id = ? AND m.status NOT IN ('sent', 'accepted') ORDER BY m.id DESC",
+        (student_id,)).fetchall()
+    rows = [{"Round": r["round_label"], "Status": STATUS_LABELS.get(r["status"], r["status"]),
+             "WhatsApp": pretty_phone(r["phone"] or ""), "Method": r["method"] or "", "Sent at": "",
+             "Message": r["body"]} for r in open_]
+    rows += [{"Round": r["round_label"], "Status": "Sent", "WhatsApp": pretty_phone(r["phone"] or ""),
+              "Method": r["method"] or "", "Sent at": r["sent_at"], "Message": r["body"]} for r in sent]
+    return pd.DataFrame(rows, columns=LOG_COLUMNS)

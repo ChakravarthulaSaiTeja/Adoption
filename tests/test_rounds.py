@@ -115,3 +115,27 @@ def test_round_warns_when_exam_numbers_differ(conn, tmp_path):
                                             rows=builders.MAINS_ROWS), p)
     add_file(conn, rid, p)
     assert round_warnings(conn, rid) == ["Exam numbers differ in this round: Advance Exam - 4, Mains Exam - 5"]
+
+
+def test_flagged_name_is_shown_and_accepting_it_clears_the_flag(conn, tmp_path):
+    from marksapp.results import build_results
+    from marksapp.rounds import accept_name
+    from tests.helpers import confirm_proposed
+    ids = seed_contacts(conn, tmp_path)
+    rid = create_round(conn, "r")
+    files = builders.write_all_marks_files(tmp_path / "f")
+    add_file(conn, rid, files["xlsx"])
+    confirm_proposed(conn, rid)  # Meghana linked; file name "PALLAPU MEGHANA SRI" saved
+    rows = [list(r) for r in builders.MAINS_ROWS]
+    rows[0][1] = "PALLAPU MEGHNA SIRI DEVI"  # the Mains file spells it differently
+    p = tmp_path / "mains_odd.xlsx"
+    builders.write_xlsx(builders.marks_grid(test_name="JEE(Main)/WTM-4", maxes=(100, 100, 100, 300),
+                                            rows=[tuple(r) for r in rows]), p)
+    add_file(conn, rid, p)
+    m = {x.stud_id: x for x in match_round(conn, rid)}["100000001"]
+    assert m.status == "review" and m.flagged_names == ["PALLAPU MEGHNA SIRI DEVI"]
+    meghana = ids["Meghana Sri Pallapu"]
+    assert build_results(conn, rid).name_flags == {meghana: ["PALLAPU MEGHNA SIRI DEVI"]}
+    accept_name(conn, meghana, "PALLAPU MEGHNA SIRI DEVI")
+    m = {x.stud_id: x for x in match_round(conn, rid)}["100000001"]
+    assert (m.status, m.reasons) == ("linked", [])  # both spellings now accepted

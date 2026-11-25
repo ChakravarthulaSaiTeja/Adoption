@@ -27,7 +27,7 @@ class StudentRef:
     id: int
     name: str
     stud_id: str | None
-    name_in_marks: str | None
+    name_in_marks: str | None  # accepted spellings from marks files, one per line
     active: bool
 
 
@@ -55,6 +55,7 @@ class MatchResult:
     student_id: int | None = None
     candidates: list[Candidate] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+    flagged_names: list[str] = field(default_factory=list)  # names that failed the cross-check
 
 
 def _fuzzy(names: list[str], pool: list[StudentRef], exclude: set[int]) -> list[Candidate]:
@@ -77,9 +78,9 @@ def match_rows(rows: list[RowRef], students: list[StudentRef], ignored: set[str]
     by_stud_id = {s.stud_id: s for s in students if s.stud_id}
     pool = [s for s in students if s.active and not s.stud_id]
 
-    unlinked_keys = Counter(
-        name_key(g[0].name) for sid, g in groups.items() if sid not in by_stud_id and sid not in ignored
-    )
+    # Name keys over every row in the round (linked ones too): a new ID that shares a name
+    # with any other ID in the files is never proposed (spec 6.5 step 2).
+    round_keys = Counter(name_key(g[0].name) for sid, g in groups.items() if sid not in ignored)
 
     results: list[MatchResult] = []
     for sid, group in groups.items():
@@ -92,12 +93,13 @@ def match_rows(rows: list[RowRef], students: list[StudentRef], ignored: set[str]
         if sid in by_stud_id:
             s = by_stud_id[sid]
             m.status, m.student_id = "linked", s.id
+            accepted = [s.name] + [a for a in (s.name_in_marks or "").split("\n") if a]
             for n in names:
-                score = max(similarity(n, s.name), similarity(n, s.name_in_marks or ""))
+                score = max(similarity(n, a) for a in accepted)
                 if score < CROSSCHECK_MIN:
-                    m.reasons.append(f"Name in file differs from saved name ({s.name})")
+                    m.flagged_names.append(n)
+                    m.reasons.append(f"Name in file ({n}) differs from saved name ({s.name})")
                     m.candidates = [Candidate(s.id, s.name, score)]
-                    break
             if not s.active:
                 m.reasons.append("Student is marked inactive")
             if m.reasons:
@@ -112,7 +114,7 @@ def match_rows(rows: list[RowRef], students: list[StudentRef], ignored: set[str]
                 if len({name_key(n) for n in names}) > 1:
                     m.reasons.append("Different names for the same ID across files")
                 m.candidates = exact_c + _fuzzy(names, pool, {s.id for s in exact})
-            elif len(exact) == 1 and unlinked_keys[key] == 1:
+            elif len(exact) == 1 and round_keys[key] == 1:
                 m.status, m.student_id, m.candidates = "proposed", exact[0].id, exact_c
             elif len(exact) > 1:
                 m.reasons.append("Several students on your list have this name")

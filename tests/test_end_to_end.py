@@ -2,7 +2,7 @@
 ever go to that student's parent, and nothing is sent without approval."""
 import pytest
 
-from marksapp.contacts import list_students, update_student
+from marksapp.contacts import confirm_shared_number, list_students, update_student
 from marksapp.messages import message_settings
 from marksapp.names import title_name
 from marksapp.outbox import approve, check_current, get_outbox, mark_sent
@@ -30,6 +30,10 @@ def test_full_round_never_crosses_students(conn, tmp_path, fmt, include_name):
     _confirm_all(conn, build_results(conn, rid))
     rr = build_results(conn, rid)
     assert get_outbox(conn, rid) == {}  # processing never approves anything
+    assert approve(conn, rid, [s for s in rr.students if s.name.startswith("Nakka")],
+                   message_settings(conn)) == []  # siblings' shared number not confirmed yet
+    confirm_shared_number(conn, "+919876543205")  # the owner confirms the siblings share a parent
+    rr = build_results(conn, rid)
     approve(conn, rid, rr.students, message_settings(conn))
     adv = {r[0]: r for r in builders.SAMPLE_ROWS}
     mains = {r[0]: r for r in builders.MAINS_ROWS}

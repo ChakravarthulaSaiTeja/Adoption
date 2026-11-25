@@ -31,3 +31,10 @@ def test_audit_log(conn):
     rows = audit.recent(conn)
     assert [r["action"] for r in rows] == ["second", "first"]
     assert json.loads(rows[0]["details"]) == {"b": "x"}
+
+
+def test_data_dir_default_is_next_to_the_app(tmp_path, monkeypatch):
+    from pathlib import Path
+    monkeypatch.delenv("MARKSAPP_DATA_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)  # started from some other folder
+    assert data_dir() == Path(__file__).resolve().parent.parent / "data"

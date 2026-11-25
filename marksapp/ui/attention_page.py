@@ -7,8 +7,9 @@ import sqlite3
 import streamlit as st
 
 from marksapp.contacts import list_students
+from marksapp.names import similarity
 from marksapp.results import build_results, edit_mark, set_total_choice
-from marksapp.rounds import accept_name, confirm_links, ignore_ids, round_rows, unignore_id
+from marksapp.rounds import accept_name, confirm_links, ignore_ids, unignore_id
 from marksapp.ui.common import pick_round
 
 DECIDE, NOT_MINE = "decide", "not_mine"
@@ -62,25 +63,25 @@ def _links(conn: sqlite3.Connection, rr) -> None:
 
 
 def _name_differs(conn: sqlite3.Connection, rr, round_id: int) -> None:
-    flagged = [s for s in rr.students if any(i.code == "match" and "differs" in i.text for i in s.issues)]
-    if not flagged:
+    if not rr.name_flags:
         return
-    st.subheader(f"Name in file differs from saved name ({len(flagged)})")
-    file_names = {}
-    for _, row in round_rows(conn, round_id):
-        file_names.setdefault(row.stud_id, row.name_in_file)
-    for s in flagged:
+    by_id = {s.student_id: s for s in rr.students}
+    st.subheader(f"Name in file differs from saved name ({len(rr.name_flags)})")
+    for sid, flagged in rr.name_flags.items():
+        s = by_id.get(sid)
+        if s is None:
+            continue
         with st.container(border=True):
-            st.markdown(f"**{s.name}** is linked to ID {s.stud_id}, but this file says "
-                        f"**{file_names.get(s.stud_id, '?')}**.")
-            if st.button("This is correct", key=f"acc_{s.student_id}"):
-                accept_name(conn, s.student_id, file_names.get(s.stud_id, ""))
-                st.rerun()
+            for n in flagged:
+                st.markdown(f"**{s.name}** is linked to ID {s.stud_id}, but a file in this round says **{n}**.")
+                if st.button(f"Yes, {n} is {s.name}", key=f"acc_{sid}_{n}"):
+                    accept_name(conn, sid, n)
+                    st.rerun()
             st.caption("If it is not the same student, unlink the ID in Contacts.")
 
 
 def _marks(conn: sqlite3.Connection, rr) -> None:
-    flagged = [s for s in rr.students if any(i.code in MARK_CODES | {"total_mismatch", "no_phone", "inactive"}
+    flagged = [s for s in rr.students if any(i.code in MARK_CODES | {"total_mismatch", "no_phone", "inactive", "shared_phone"}
                                              for i in s.issues)]
     st.subheader(f"2. Marks and numbers to fix ({len(flagged)})")
     if not flagged:
@@ -90,7 +91,7 @@ def _marks(conn: sqlite3.Connection, rr) -> None:
         with st.container(border=True):
             st.markdown(f"**{s.name}**")
             for i in s.issues:
-                if i.code in ("no_phone", "inactive"):
+                if i.code in ("no_phone", "inactive", "shared_phone"):
                     st.error(f"{i.text} — fix it on the Contacts page.")
             for em in s.exams:
                 codes = {i.code for i in em.issues}
@@ -137,9 +138,15 @@ def _not_found(conn: sqlite3.Connection, rr) -> None:
                 ignore_ids(conn, [(m.stud_id, m.names[0])])
                 st.rerun()
             if unlinked:
-                pick = c2.selectbox("Or link to", [s["id"] for s in unlinked], key=f"ln_{m.stud_id}",
-                                    format_func=lambda i: next(s["name"] for s in unlinked if s["id"] == i))
-                if c3.button("Link", key=f"lnb_{m.stud_id}"):
+                names = {x["id"]: x["name"] for x in unlinked}
+                pick = c2.selectbox("Or link to", list(names), index=None, placeholder="Choose a student",
+                                    key=f"ln_{m.stud_id}", format_func=names.get)
+                sure = False
+                if pick is not None:
+                    score = similarity(m.names[0], names[pick])
+                    c2.caption(f"File: {m.names[0]} · Your list: {names[pick]} · {score:.0f}% similar")
+                    sure = c2.checkbox(f"Yes, {m.names[0]} is {names[pick]}", key=f"lnc_{m.stud_id}")
+                if c3.button("Link", key=f"lnb_{m.stud_id}", disabled=not sure):
                     try:
                         confirm_links(conn, [(m.stud_id, pick, m.names[0])])
                     except ValueError as e:
