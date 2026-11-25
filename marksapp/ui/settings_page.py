@@ -10,7 +10,9 @@ from marksapp import auth
 from marksapp.messages import MessageSettings, render_message
 from marksapp.results import ExamMarks, StudentResult
 from marksapp.secrets_store import load_secrets, save_secrets
+from marksapp.sending.method import remove_api_key, sending_method
 from marksapp.settings import get_setting, set_setting
+from marksapp.ui.style import chip
 from marksapp.values import parse_mark
 
 LINK_KINDS = {"wa.me": "WhatsApp link (phone or computer)", "web": "WhatsApp Web in the browser",
@@ -111,16 +113,19 @@ def round_shapes(conn: sqlite3.Connection) -> list[str]:
 
 def _api(conn: sqlite3.Connection) -> None:
     st.subheader("WhatsApp Business API (optional)")
-    st.caption("Only needed to send through Meta's official API instead of your phone. "
-               "See docs/whatsapp-api-setup.md for the setup steps.")
+    method = sending_method(conn)
+    st.markdown(chip("In use: WhatsApp Business API" if method == "api"
+                     else "In use: your own WhatsApp (normal method)", "green"), unsafe_allow_html=True)
+    st.caption("If an API key is saved here, messages go through Meta's official API. If not, the app "
+               "uses your own WhatsApp. Setup steps: docs/whatsapp-api-setup.md.")
     api = get_setting(conn, "api")
     secrets = load_secrets()
     pnid = st.text_input("Phone Number ID", secrets.get("phone_number_id", ""), key="api_pnid")
     waba = st.text_input("WhatsApp Business Account ID (optional)", secrets.get("waba_id", ""), key="api_waba")
-    token = st.text_input("Access token", "", type="password", key="api_token",
+    token = st.text_input("Access token (API key)", "", type="password", key="api_token",
                           help="Leave empty to keep the saved token.")
     saved = secrets.get("access_token")
-    st.caption(f"Access token saved, ends …{saved[-4:]}" if saved else "No access token saved yet.")
+    st.caption(f"Access token saved, ends …{saved[-4:]}" if saved else "No access token saved.")
     c1, c2, c3 = st.columns(3)
     version = c1.text_input("API version", api.get("api_version", "v24.0"), key="api_version")
     language = c2.text_input("Template language code", api.get("language", "en"), key="api_lang")
@@ -131,17 +136,20 @@ def _api(conn: sqlite3.Connection) -> None:
     for shape in round_shapes(conn):
         templates[shape] = st.text_input(shape.replace("+", " + "), api.get("templates", {}).get(shape, ""),
                                          key=f"api_tpl_{shape}").strip()
-    enabled = st.checkbox("Use the API for sending", bool(api.get("enabled")), key="api_enabled")
-    if st.button("Save API settings", key="api_save"):
+    b1, b2 = st.columns(2)
+    if b1.button("Save API settings", key="api_save", type="primary"):
         secrets.update(phone_number_id=pnid.strip(), waba_id=waba.strip())
         if token.strip():
             secrets["access_token"] = token.strip()
         save_secrets(secrets)
-        set_setting(conn, "api", {"enabled": enabled, "api_version": version.strip() or "v24.0",
+        set_setting(conn, "api", {"api_version": version.strip() or "v24.0",
                                   "language": language.strip() or "en",
                                   "templates": {k: v for k, v in templates.items() if v},
                                   "pause_seconds": float(pause)})
         st.success("API settings saved.")
+    if b2.button("Remove API key (use my own WhatsApp)", key="api_remove", disabled=not saved):
+        remove_api_key()
+        st.success("API key removed. Messages will be sent from your own WhatsApp.")
 
 
 def render(conn: sqlite3.Connection) -> None:

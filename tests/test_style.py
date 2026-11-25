@@ -33,3 +33,14 @@ def test_link_targets():
 
 def test_default_link_kind_is_desktop(conn):
     assert get_setting(conn, "link_kind") == "desktop"
+
+
+def test_link_html_encodes_everything():
+    from urllib.parse import unquote
+
+    from marksapp.outbox import phone_link
+    text = "*Rāma & Sītā* # ? తెలుగు 🎉"
+    url = phone_link("+919876543201", text, "desktop")
+    query_text = url.split("text=", 1)[1]
+    assert "&" not in query_text and "#" not in url and "?" not in url.split("?", 1)[1]
+    assert unquote(query_text) == text
