@@ -77,7 +77,9 @@ def round_shape(result: StudentResult) -> str:
 def template_params(result: StudentResult, include_name: bool) -> list[str]:
     params = [title_name(result.name)] if include_name else []
     for e in result.exams:
-        params += [str(e.exam_number) if e.exam_number is not None else e.display_name,
+        if e.exam_number is None:
+            raise ValueError(f"{e.display_name} has no exam number, which the API template needs")
+        params += [str(e.exam_number),
                    e.maths.display(), e.physics.display(), e.chemistry.display(), e.total.display()]
     return params
 
@@ -112,8 +114,8 @@ def send_batch(conn: sqlite3.Connection, round_id: int, student_ids: list[int], 
         if not check_current(conn, rec, res, ms):
             outcome.skipped_changed += 1
             continue
-        params = template_params(res, ms.include_name)
         try:
+            params = template_params(res, ms.include_name)
             for p in params:
                 validate_param(p)
         except ValueError as e:
@@ -133,8 +135,9 @@ def send_batch(conn: sqlite3.Connection, round_id: int, student_ids: list[int], 
                 outcome.stopped_reason = e.message
                 break
             continue
-        except requests.Timeout:
-            mark_unknown(conn, rec.id, "No answer from WhatsApp in time — check before sending again")
+        except (requests.Timeout, requests.ConnectionError):
+            # The request may have reached WhatsApp: never retry automatically.
+            mark_unknown(conn, rec.id, "No clear answer from WhatsApp — check before sending again")
             outcome.unknown += 1
             continue
         except requests.RequestException as e:

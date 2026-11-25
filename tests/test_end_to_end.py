@@ -95,3 +95,28 @@ def test_number_change_after_approval_blocks_send(conn, tmp_path):
     update_student(conn, s.student_id, phone="9000000009")
     fresh = next(x for x in build_results(conn, rid).students if x.student_id == s.student_id)
     assert check_current(conn, get_outbox(conn, rid)[s.student_id], fresh, ms) is False
+
+
+def test_mixed_excel_and_pdf_round(conn, tmp_path):
+    from marksapp.contacts import confirm_shared_number
+    from marksapp.rounds import create_round
+    from tests.helpers import add_file
+    seed_contacts(conn, tmp_path)
+    files = builders.write_all_marks_files(tmp_path / "mixed")
+    rid = create_round(conn, "mixed")
+    add_file(conn, rid, files["xlsx"])       # Advance as Excel
+    add_file(conn, rid, files["mains_pdf"])  # Mains as PDF
+    _confirm_all(conn, build_results(conn, rid))
+    confirm_shared_number(conn, "+919876543205")
+    rr = build_results(conn, rid)
+    approve(conn, rid, rr.students, message_settings(conn))
+    adv = {r[0]: r for r in builders.SAMPLE_ROWS}
+    mains = {r[0]: r for r in builders.MAINS_ROWS}
+    outbox = get_outbox(conn, rid)
+    assert len(outbox) == 7
+    for sid, rec in outbox.items():
+        res = next(s for s in rr.students if s.student_id == sid)
+        for title, rows in (("Advance Exam - 4", adv), ("Mains Exam - 4", mains)):
+            _, _, _, m, p, c, t = rows[res.stud_id]
+            assert (f"*{title} Marks*\n\nMaths - {m}\nPhysics - {p}\nChemistry - {c}"
+                    f"\n\n*Total Marks - {t}*") in rec.body

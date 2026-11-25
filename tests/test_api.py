@@ -120,3 +120,36 @@ def test_secrets_not_in_db(conn):
     assert "SECRET-TOKEN-123" not in "\n".join(conn.iterdump())
     if os.name == "posix":
         assert oct(secrets_path().stat().st_mode)[-3:] == "600"
+
+
+def test_connection_error_is_unknown(conn, tmp_path):
+    rid, ids = _setup(conn, tmp_path, n=1)
+    fake = FakeSession(requests.ConnectionError("connection reset after sending"))
+    outcome = send_batch(conn, rid, ids, WhatsAppClient("P", "T", session=fake), sleep=lambda s: None)
+    assert outcome.unknown == 1 and get_outbox(conn, rid)[ids[0]].status == "unknown"
+
+
+def test_skips_message_changed_since_approval(conn, tmp_path):
+    from marksapp.contacts import update_student
+    rid, ids = _setup(conn, tmp_path, n=1)
+    update_student(conn, ids[0], phone="9000000001")
+    fake = FakeSession()
+    outcome = send_batch(conn, rid, ids, WhatsAppClient("P", "T", session=fake), sleep=lambda s: None)
+    assert outcome.skipped_changed == 1 and fake.calls == []
+
+
+def test_exam_without_number_refused():
+    from dataclasses import replace
+    result = make_result()
+    result.exams[0] = replace(result.exams[0], exam_number=None)
+    with pytest.raises(ValueError, match="has no exam number"):
+        template_params(result, False)
+
+
+def test_phone_sent_message_is_not_sent_by_api(conn, tmp_path):
+    from marksapp.outbox import mark_sent
+    rid, ids = _setup(conn, tmp_path, n=1)
+    mark_sent(conn, get_outbox(conn, rid)[ids[0]].id)  # sent from the owner's own WhatsApp
+    fake = FakeSession()
+    send_batch(conn, rid, ids, WhatsAppClient("P", "T", session=fake), sleep=lambda s: None)
+    assert fake.calls == []
