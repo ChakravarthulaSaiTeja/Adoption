@@ -1,0 +1,84 @@
+from streamlit.testing.v1 import AppTest
+
+from marksapp.contacts import update_student
+from marksapp.messages import message_settings
+from marksapp.outbox import approve, get_outbox, mark_sent
+from marksapp.settings import get_setting
+from marksapp.ui.send_page import drop_stale, next_to_send
+from tests.helpers import linked_round
+
+
+def _at(module):
+    src = f'''
+import importlib
+from marksapp.ui.common import get_conn
+importlib.import_module("marksapp.ui.{module}").render(get_conn())
+'''
+    return AppTest.from_string(src)
+
+
+def test_next_to_send_skips_changed(conn, tmp_path):
+    rid, rr = linked_round(conn, tmp_path)
+    ids = approve(conn, rid, rr.students, message_settings(conn))
+    update_student(conn, ids[0], phone="9000000001")  # this approval is now stale
+    assert drop_stale(conn, rid) == 1
+    rec, res = next_to_send(conn, rid, None)
+    assert rec.student_id != ids[0] and ids[0] not in get_outbox(conn, rid)
+    assert res.student_id == rec.student_id
+
+
+def test_next_to_send_respects_only(conn, tmp_path):
+    rid, rr = linked_round(conn, tmp_path)
+    ids = approve(conn, rid, rr.students, message_settings(conn))
+    rec, _ = next_to_send(conn, rid, {ids[-1]})
+    assert rec.student_id == ids[-1]
+
+
+def test_next_to_send_none_when_all_sent(conn, tmp_path):
+    rid, rr = linked_round(conn, tmp_path)
+    approve(conn, rid, rr.students, message_settings(conn))
+    for rec in get_outbox(conn, rid).values():
+        mark_sent(conn, rec.id)
+    assert next_to_send(conn, rid, None) is None
+
+
+def test_preview_approve_all_ready(app_env, conn, tmp_path):
+    rid, rr = linked_round(conn, tmp_path)
+    at = _at("preview_page").run(timeout=30)
+    assert not at.exception
+    at.button(key="approve_all").click().run(timeout=30)
+    assert not at.exception
+    assert len(get_outbox(conn, rid)) == sum(s.status == "ready" for s in rr.students)
+
+
+def test_send_page_marks_sent(app_env, conn, tmp_path):
+    rid, rr = linked_round(conn, tmp_path)
+    approve(conn, rid, rr.students, message_settings(conn))
+    at = _at("send_page").run(timeout=30)
+    assert not at.exception
+    at.button(key="mark_sent").click().run(timeout=30)
+    assert not at.exception
+    assert [r.status for r in get_outbox(conn, rid).values()].count("sent") == 1
+
+
+def test_reports_page_renders(app_env, conn, tmp_path):
+    rid, rr = linked_round(conn, tmp_path)
+    at = _at("reports_page").run(timeout=30)
+    assert not at.exception
+
+
+def test_settings_rejects_bad_template(app_env, conn):
+    before = get_setting(conn, "message")
+    at = _at("settings_page").run(timeout=30)
+    assert not at.exception
+    at.text_area(key="set_block").input("*{exam} Marks* {maths")
+    at.button(key="set_msg_save").click().run(timeout=30)
+    assert at.error
+    assert get_setting(conn, "message") == before
+
+
+def test_settings_turns_on_name_line(app_env, conn):
+    at = _at("settings_page").run(timeout=30)
+    at.checkbox(key="set_inc").check()
+    at.button(key="set_msg_save").click().run(timeout=30)
+    assert not at.error and get_setting(conn, "message")["include_name"] is True
