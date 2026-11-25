@@ -44,9 +44,16 @@ def normalise_phone(raw: object) -> PhoneResult:
     digits = re.sub(r"\D", "", text)
     if not digits:
         return _bad(text, "Missing")
-    if plus and not digits.startswith("91"):
-        return _bad(text, "Not an Indian mobile number")
-    if len(digits) == 12 and digits.startswith("91"):
+    if not plus and digits.startswith("00"):
+        plus, digits = True, digits[2:]  # "00" is the international prefix, same as "+"
+    if plus:
+        if digits.startswith("91"):
+            digits = digits[2:]  # Indian number written with its country code: Indian rules below
+        elif 8 <= len(digits) <= 15 and not digits.startswith("0"):
+            return PhoneResult(True, "+" + digits, text, None)  # a parent abroad
+        else:
+            return _bad(text, "Not a valid international number")
+    elif len(digits) == 12 and digits.startswith("91"):
         digits = digits[2:]
     elif len(digits) == 11 and digits.startswith("0"):
         digits = digits[1:]
