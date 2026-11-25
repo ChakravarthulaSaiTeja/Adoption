@@ -65,3 +65,11 @@ def test_attention_save_links(app_env, conn, tmp_path):
     at.button(key="save_links").click().run(timeout=30)
     assert not at.exception
     assert conn.execute("select count(*) from students where stud_id is not null").fetchone()[0] == 6
+
+
+def test_start_round_switches_to_new_round(app_env, conn):
+    at = AppTest.from_function(round_script).run(timeout=30)
+    at.button(key="round_create").click().run(timeout=30)
+    assert not at.exception
+    assert conn.execute("select count(*) from rounds").fetchone()[0] == 1
+    assert "Add files" in [h.value for h in at.subheader]

@@ -81,23 +81,24 @@ def prepare_upload(conn: sqlite3.Connection, data: bytes, filename: str,
     return UploadPreview(parsed, name, duplicate, None, via_ocr, grid)
 
 
+def _start_round(conn: sqlite3.Connection) -> None:
+    """Button callback: runs before the widgets, so the round picker can switch to the new round."""
+    label = (st.session_state.get("round_label") or "").strip() or "Round"
+    st.session_state["round_pick"] = create_round(conn, label)
+
+
 def _pick_round(conn: sqlite3.Connection) -> int | None:
     open_rounds = [r for r in list_rounds(conn) if not round_locked(conn, r["id"])]
     options = [None] + [r["id"] for r in open_rounds]
     labels = {r["id"]: r["label"] for r in open_rounds}
-    if "current_round" in st.session_state and st.session_state["current_round"] in options:
-        index = options.index(st.session_state["current_round"])
-    else:
-        index = 1 if open_rounds else 0
-    choice = st.selectbox("Round", options, index=index, key="round_pick",
+    if st.session_state.get("round_pick") not in options:
+        st.session_state.pop("round_pick", None)
+    choice = st.selectbox("Round", options, index=1 if open_rounds else 0, key="round_pick",
                           format_func=lambda r: "➕ Start a new round" if r is None else labels[r])
     if choice is None:
-        label = st.text_input("Name for the new round", f"Round of {date.today():%d-%b-%Y}", key="round_label")
-        if st.button("Start round", type="primary", key="round_create"):
-            st.session_state["current_round"] = create_round(conn, label.strip() or "Round")
-            st.rerun()
+        st.text_input("Name for the new round", f"Round of {date.today():%d-%b-%Y}", key="round_label")
+        st.button("Start round", type="primary", key="round_create", on_click=_start_round, args=(conn,))
         return None
-    st.session_state["current_round"] = choice
     return choice
 
 
@@ -141,6 +142,9 @@ def _exam_name_inputs(conn: sqlite3.Connection, suggested: ExamName, key: str) -
 def _one_file(conn: sqlite3.Connection, round_id: int, up, idx: int) -> None:
     key = f"f{idx}_{up.file_id if hasattr(up, 'file_id') else up.name}"
     data = up.getvalue()
+    if any(e.file_hash == file_hash(data) for e in list_exams(conn, round_id)):
+        st.success(f"✓ {up.name} is in this round.")
+        return
     with st.container(border=True):
         st.markdown(f"**{up.name}**")
         preview = prepare_upload(conn, data, up.name, None)
