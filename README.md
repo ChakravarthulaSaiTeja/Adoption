@@ -136,7 +136,8 @@ The app picks the way of sending automatically:
 
   The first time, your browser asks whether to open WhatsApp: tick **Always
   allow**. Using WhatsApp Web instead? Choose it under **Settings → How
-  WhatsApp opens**, and the app reuses one browser tab.
+  WhatsApp opens**. Each student then opens in a new browser tab (WhatsApp Web
+  doesn't allow a tab to be reused), so the desktop app is smoother.
 - **API key saved:** the app sends all approved messages through Meta's
   official WhatsApp Business API, with one button. If the API can't be used
   (for example no template is set for this round, or Meta's side is down),
@@ -152,7 +153,7 @@ are still exactly what you approved.
 - **Start each message with the student's name**: turn this on if brothers or
   sisters share a parent's number.
 - **How WhatsApp opens**: the desktop app (recommended on Mac and Windows),
-  WhatsApp Web, or a WhatsApp link (for phones).
+  WhatsApp Web (a new tab per student), or a WhatsApp link (for phones).
 - **Exam names**: which words in a test name mean "Advance Exam" or "Mains
   Exam", and their order in the message.
 - **WhatsApp Business API** (optional): save your Phone Number ID and access

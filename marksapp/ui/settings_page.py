@@ -16,7 +16,7 @@ from marksapp.ui.style import chat, chip, header
 from marksapp.values import parse_mark
 
 LINK_KINDS = {"desktop": "WhatsApp desktop app (recommended on Mac and Windows)",
-              "web": "WhatsApp Web in the browser (reuses one tab)",
+              "web": "WhatsApp Web in the browser (opens a new tab for each student)",
               "wa.me": "WhatsApp link (for phones)"}
 
 

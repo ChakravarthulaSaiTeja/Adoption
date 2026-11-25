@@ -27,7 +27,8 @@ def test_link_targets():
     d = whatsapp_link_html("whatsapp://send?phone=91&text=a%26b", "desktop")
     assert 'target="_self"' in d and 'class="wa-btn"' in d
     assert 'href="whatsapp://send?phone=91&amp;text=a%26b"' in d
-    assert 'target="marks_whatsapp"' in whatsapp_link_html("https://web.whatsapp.com/send?x", "web")
+    # WhatsApp Web refuses to be reused across clicks (its pages isolate themselves), so be honest: new tab.
+    assert 'target="_blank"' in whatsapp_link_html("https://web.whatsapp.com/send?x", "web")
     assert 'target="_blank"' in whatsapp_link_html("https://wa.me/91?text=x", "wa.me")
 
 
@@ -44,3 +45,8 @@ def test_link_html_encodes_everything():
     query_text = url.split("text=", 1)[1]
     assert "&" not in query_text and "#" not in url and "?" not in url.split("?", 1)[1]
     assert unquote(query_text) == text
+
+
+def test_settings_does_not_promise_tab_reuse():
+    from marksapp.ui.settings_page import LINK_KINDS
+    assert "reuses" not in LINK_KINDS["web"] and "new tab" in LINK_KINDS["web"]

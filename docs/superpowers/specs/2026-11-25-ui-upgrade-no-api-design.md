@@ -66,7 +66,9 @@ each child's marks going to the right parent is not loosened in any way.
   - Streamlit keeps the `target` of raw HTML links.
   - A `whatsapp://send?...` link with `target="_self"` hands over to the desktop
     app without leaving the page.
-  - A web link with a named target reuses one tab.
+  - ~~A web link with a named target reuses one tab.~~ Corrected by the final review:
+    Streamlit adds `noopener` and WhatsApp Web sends a Cross-Origin-Opener-Policy header,
+    so each click opens a new tab. The app says so and recommends the desktop app.
   - Streamlit's built-in `st.link_button` always opens a new tab (`_blank`).
 
 ## 4. Approaches

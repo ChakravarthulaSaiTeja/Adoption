@@ -41,7 +41,7 @@ _LABELS = {
     "sent": "📤 Sent", "accepted": "📤 Sent", "failed": "⚠️ Failed", "unknown": "⚠️ Unknown — check",
     "skipped": "⏭ Skipped", "sending": "⏳ Sending",
 }
-_TARGETS = {"desktop": "_self", "web": "marks_whatsapp"}
+_TARGETS = {"desktop": "_self"}
 _BOLD = re.compile(r"\*([^*\n]+)\*")
 
 
@@ -74,8 +74,8 @@ def chip(text: str, colour: str = "grey") -> str:
 
 
 def whatsapp_link_html(url: str, kind: str, label: str = "Open in WhatsApp") -> str:
-    """A button-looking link. The desktop app opens without leaving the page; WhatsApp Web
-    reuses one named tab; a wa.me link opens a new tab (for phones)."""
+    """A button-looking link. The desktop app opens without leaving the page. WhatsApp Web and
+    wa.me links open in a new tab: WhatsApp Web's pages isolate themselves, so a tab can't be reused."""
     target = _TARGETS.get(kind, "_blank")
     return (f'<a class="wa-btn" href="{html.escape(url, quote=True)}" target="{target}" '
             f'rel="noopener">{html.escape(label)}</a>')

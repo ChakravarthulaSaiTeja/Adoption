@@ -153,6 +153,10 @@ def _phone_flow(conn: sqlite3.Connection, round_id: int, results: dict, queued: 
                           on_click=_act, args=(conn, "skip", rec.id, round_id))
     if kind == "desktop":
         st.caption("First time only: your browser asks whether to open WhatsApp. Tick **Always allow**.")
+    elif kind == "web":
+        st.caption("WhatsApp Web opens a new tab for each student — close the previous one. If it says "
+                   "WhatsApp is open in another window, click **Use here**. The desktop app avoids this "
+                   "(Settings → How WhatsApp opens).")
 
 
 def _already_sent(conn: sqlite3.Connection, sent: list, results: dict) -> None:
