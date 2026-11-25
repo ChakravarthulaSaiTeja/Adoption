@@ -10,10 +10,11 @@ from marksapp import audit
 from marksapp.contacts import list_students
 from marksapp.reports import message_log, report_xlsx, round_counts, round_report, student_history
 from marksapp.ui.common import pick_round
+from marksapp.ui.style import header
 
 
 def render(conn: sqlite3.Connection) -> None:
-    st.title("Reports & history")
+    header("Reports & history", "What was sent this round, each student's marks over time, and the activity log.")
     st.subheader("Delivery report")
     round_id = pick_round(conn, key="rep_round")
     if round_id is not None:

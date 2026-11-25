@@ -252,3 +252,15 @@ def save_layout(conn: sqlite3.Connection, signature: str, column_map: dict[str, 
 def get_layout(conn: sqlite3.Connection, signature: str) -> dict[str, int] | None:
     row = conn.execute("SELECT column_map FROM layouts WHERE signature = ?", (signature,)).fetchone()
     return json.loads(row["column_map"]) if row else None
+
+
+def save_contact_columns(conn: sqlite3.Connection, signature: str, cols: list[int | None]) -> None:
+    """Remember the owner's column choice for contact lists with these headers."""
+    with conn:
+        conn.execute("INSERT OR REPLACE INTO layouts(signature, column_map) VALUES (?, ?)",
+                     ("contacts:" + signature, json.dumps(cols)))
+
+
+def get_contact_columns(conn: sqlite3.Connection, signature: str) -> list[int | None] | None:
+    row = conn.execute("SELECT column_map FROM layouts WHERE signature = ?", ("contacts:" + signature,)).fetchone()
+    return json.loads(row["column_map"]) if row else None

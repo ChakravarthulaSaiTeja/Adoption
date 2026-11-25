@@ -15,6 +15,7 @@ from marksapp.readers.marks_layout import (OPTIONAL, REQUIRED, LayoutNotFound, P
 from marksapp.rounds import (RoundLocked, add_exam, create_round, find_duplicate_exam, get_layout,
                              list_exams, list_rounds, remove_exam, round_locked, round_warnings, save_layout)
 from marksapp.settings import get_setting
+from marksapp.ui.style import header
 
 NO_OCR = ("This PDF is a scanned image and OCR is not installed. Install Tesseract (see README) "
           "or ask for the Excel/PDF export.")
@@ -38,11 +39,38 @@ def _first_nonempty_row(grid: Grid) -> int:
     return next((i for i, r in enumerate(grid) if any(str(c).strip() for c in r)), 0)
 
 
+@st.cache_data(show_spinner="Reading the scanned PDF…", max_entries=20)
+def _ocr_grid(data: bytes) -> Grid:
+    """OCR is slow: read each scanned file once, not again on every click."""
+    from marksapp.readers import ocr
+    return ocr.ocr_pdf_to_grid(data)
+
+
 def _scanned_pdf_grid(data: bytes) -> tuple[Grid | None, str | None]:
     from marksapp.readers import ocr
     if not ocr.ocr_available():
         return None, NO_OCR
-    return ocr.ocr_pdf_to_grid(data), None
+    return _ocr_grid(data), None
+
+
+def column_map_problems(cmap: dict[str, int | None]) -> list[str]:
+    problems = [f"Choose a column for {FIELD_LABELS[f]}" for f in REQUIRED if cmap.get(f) is None]
+    by_col: dict[int, list[str]] = {}
+    for f in REQUIRED + OPTIONAL:
+        if cmap.get(f) is not None:
+            by_col.setdefault(cmap[f], []).append(FIELD_LABELS[f])
+    problems += [" and ".join(labels) + " use the same column" for labels in by_col.values() if len(labels) > 1]
+    return problems
+
+
+def upload_warnings(parsed: ParsedMarksFile, via_ocr: bool) -> list[str]:
+    warnings = []
+    if via_ocr:
+        warnings.append("Read from a scanned PDF. Every student from this file will need checking one by one.")
+        if "total" not in parsed.column_map:
+            warnings.append("The total column wasn't found in this scanned file, so totals can't be "
+                            "cross-checked. Check every total by hand.")
+    return warnings
 
 
 def prepare_upload(conn: sqlite3.Connection, data: bytes, filename: str,
@@ -106,23 +134,30 @@ def _pick_round(conn: sqlite3.Connection) -> int | None:
     return choice
 
 
-def _manual_mapping(grid: Grid, key: str) -> tuple[dict[str, int], int] | None:
+def _manual_mapping(grid: Grid, key: str, initial: dict[str, int] | None = None,
+                    initial_header: int | None = None) -> tuple[dict[str, int], int, list[str]] | None:
+    """Column choice by hand. Returns (mapping, header row, problems) once 'Use these columns' is ticked."""
     st.caption("Tell the app which column holds what. This is remembered for files with the same headers.")
-    header_row = st.number_input("Header row number", 1, len(grid), _first_nonempty_row(grid) + 1,
-                                 key=f"{key}_hr") - 1
+    start = initial_header if initial_header is not None and initial_header >= 0 else _first_nonempty_row(grid)
+    header_row = st.number_input("Header row number", 1, len(grid), start + 1, key=f"{key}_hr") - 1
     headers = grid[header_row]
     cols = list(range(max(len(r) for r in grid)))
     label = lambda c: f"{headers[c]} (column {c + 1})" if c < len(headers) and headers[c] else f"Column {c + 1}"
     cmap: dict[str, int] = {}
     cells = st.columns(4)
     for i, f in enumerate(REQUIRED + OPTIONAL):
-        options = cols if f in REQUIRED else [None] + cols
+        options = [None] + cols
+        current = (initial or {}).get(f)
         choice = cells[i % 4].selectbox(FIELD_LABELS[f], options, key=f"{key}_{f}",
-                                        format_func=lambda c: "None" if c is None else label(c))
+                                        index=options.index(current) if current in options else 0,
+                                        format_func=lambda c: "—" if c is None else label(c))
         if choice is not None:
             cmap[f] = choice
-    if st.checkbox("Use this mapping", key=f"{key}_use"):
-        return cmap, header_row
+    problems = column_map_problems(cmap)
+    for problem in problems:
+        st.error(problem)
+    if st.checkbox("Use these columns", key=f"{key}_use"):
+        return cmap, header_row, problems
     return None
 
 
@@ -159,17 +194,23 @@ def _one_file(conn: sqlite3.Connection, round_id: int, up, idx: int) -> None:
         elif preview.parsed is not None and preview.parsed.missing_fields:
             missing = ", ".join(FIELD_LABELS[f] for f in preview.parsed.missing_fields)
             st.warning(f"Couldn't find these columns: {missing}. Map the columns by hand.")
-            manual = _manual_mapping(preview.grid, key)
+            manual = _manual_mapping(preview.grid, key, preview.parsed.column_map, preview.parsed.header_row)
         elif preview.error:
             st.error(preview.error)
             return
+        else:
+            with st.expander("Change columns"):
+                manual = _manual_mapping(preview.grid, key, preview.parsed.column_map, preview.parsed.header_row)
         if manual is not None:
+            if manual[2]:
+                st.info("Fix the column choices above before adding this file.")
+                return
             preview = prepare_upload(conn, data, up.name, manual[0], manual[1])
         p = preview.parsed
         if p is None or p.missing_fields:
             return
-        if preview.via_ocr:
-            st.warning("Read from a scanned PDF. Every student from this file will need checking one by one.")
+        for w in upload_warnings(p, preview.via_ocr):
+            st.warning(w)
         mx = {k: _max_text(v) for k, v in p.maxes.items()}
         st.caption(f"Test name: {p.test_name or '—'} · Test date: {p.test_date or '—'} · "
                    f"Max marks: Maths {mx['maths']}, Physics {mx['physics']}, "
@@ -212,9 +253,8 @@ def _max_text(v: float | None) -> str:
 
 
 def render(conn: sqlite3.Connection) -> None:
-    st.title("New round")
-    st.caption("Upload this round's marks files (for example the Advance and the Mains file). "
-               "Nothing is sent from this page.")
+    header("New round", "Upload this round's marks files (for example Advance and Mains). Nothing is sent "
+                        "from this page.")
     round_id = _pick_round(conn)
     if round_id is None:
         return

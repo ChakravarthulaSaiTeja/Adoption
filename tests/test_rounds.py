@@ -139,3 +139,11 @@ def test_flagged_name_is_shown_and_accepting_it_clears_the_flag(conn, tmp_path):
     accept_name(conn, meghana, "PALLAPU MEGHNA SIRI DEVI")
     m = {x.stud_id: x for x in match_round(conn, rid)}["100000001"]
     assert (m.status, m.reasons) == ("linked", [])  # both spellings now accepted
+
+
+def test_contact_columns_remembered(conn):
+    from marksapp.rounds import get_contact_columns, save_contact_columns
+    assert get_contact_columns(conn, "sig") is None
+    save_contact_columns(conn, "sig", [0, 3, None])
+    assert get_contact_columns(conn, "sig") == [0, 3, None]
+    assert get_layout(conn, "sig") is None  # kept apart from marks layouts

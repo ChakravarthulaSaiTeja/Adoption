@@ -114,3 +114,22 @@ def test_attention_lists_absent_and_duplicate_rows(app_env, conn, tmp_path):
     text = _page_text(at)
     assert "Absent from Advance Exam - 4" in text
     assert "Replace the earlier import" in text
+
+
+def test_column_map_problems():
+    from marksapp.ui.round_page import column_map_problems
+    assert column_map_problems({"stud_id": 0, "name": 1, "maths": 2, "physics": 2, "chemistry": 4}) == \
+        ["Maths and Physics use the same column"]
+    assert "Choose a column for Chemistry" in column_map_problems({"stud_id": 0, "name": 1, "maths": 2,
+                                                                  "physics": 3})
+    assert column_map_problems({"stud_id": 0, "name": 1, "maths": 2, "physics": 3, "chemistry": 4,
+                                "section": None, "total": 5}) == []
+
+
+def test_ocr_file_without_total_column_warns(conn):
+    from marksapp.ui.round_page import upload_warnings
+    from marksapp.readers.marks_layout import parse_marks_grid
+    g = [["ROLL NO", "NAME", "MAT", "PHY", "CHE"], ["1", "SYED AFREEN", "12", "8", "5"]]
+    parsed = parse_marks_grid(g)
+    assert any("total column wasn't found" in w for w in upload_warnings(parsed, via_ocr=True))
+    assert not any("total column" in w for w in upload_warnings(parsed, via_ocr=False))

@@ -11,7 +11,10 @@ from marksapp.contacts import (add_student, apply_contact_diff, confirm_shared_n
                                unconfirmed_shared_numbers, update_student)
 from marksapp.phones import pretty_phone
 from marksapp.readers.grid import NoTextInPdf, UnsupportedFile, file_hash, load_grid
+from marksapp.readers.marks_layout import header_signature
+from marksapp.rounds import get_contact_columns, save_contact_columns
 from marksapp.settings import get_setting
+from marksapp.ui.style import header
 
 
 def _column_label(grid, header_row, c) -> str:
@@ -39,6 +42,11 @@ def _upload(conn: sqlite3.Connection) -> None:
         st.error("The file is empty.")
         return
     header_row, name_col, phone_col, section_col = detect_contact_columns(grid)
+    signature = header_signature(grid[header_row]) if header_row is not None else None
+    remembered = get_contact_columns(conn, signature) if signature else None
+    width_now = max(len(r) for r in grid)
+    if remembered and all(c is None or 0 <= c < width_now for c in remembered) and None not in remembered[:2]:
+        name_col, phone_col, section_col = remembered
     width = max(len(r) for r in grid)
     cols = list(range(width))
     label = lambda c: _column_label(grid, header_row, c)
@@ -100,6 +108,8 @@ def _upload(conn: sqlite3.Connection) -> None:
                 st.write(" & ".join(group))
     if st.button("Apply changes", type="primary", key="contacts_apply"):
         apply_contact_diff(conn, d, up.name, file_hash(data))
+        if signature:
+            save_contact_columns(conn, signature, [name_col, phone_col, section_col])
         st.success("Contact list updated.")
 
 
@@ -171,7 +181,7 @@ def _student_list(conn: sqlite3.Connection) -> None:
 
 
 def render(conn: sqlite3.Connection) -> None:
-    st.title("Contacts")
+    header("Contacts", "Students and their parents' WhatsApp numbers. Upload a new list whenever it changes.")
     _upload(conn)
     st.divider()
     _student_list(conn)
