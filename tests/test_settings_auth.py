@@ -5,7 +5,7 @@ from marksapp.settings import get_setting, set_setting
 
 
 def test_defaults_and_override(conn):
-    assert get_setting(conn, "link_kind") == "wa.me"
+    assert get_setting(conn, "link_kind") == "desktop"
     m = get_setting(conn, "message")
     m["include_name"] = True  # mutating the copy must not leak into defaults
     assert get_setting(conn, "message")["include_name"] is False

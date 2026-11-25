@@ -17,7 +17,7 @@ DEFAULTS: dict[str, Any] = {
         "include_name": False,
         "name_line": "*{name}*",
     },
-    "link_kind": "wa.me",
+    "link_kind": "desktop",
     "api": {"enabled": False, "api_version": "v24.0", "language": "en",
             "templates": {}, "pause_seconds": 2.0},
 }

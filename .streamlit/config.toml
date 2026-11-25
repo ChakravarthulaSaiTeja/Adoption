@@ -7,3 +7,10 @@ gatherUsageStats = false
 [client]
 # Hide Streamlit's "Deploy" button: this app holds private data and must stay on this computer.
 toolbarMode = "minimal"
+
+[theme]
+primaryColor = "#128C7E"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F5F4"
+textColor = "#1C2421"
+font = "sans serif"
