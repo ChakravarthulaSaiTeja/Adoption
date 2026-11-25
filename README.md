@@ -94,44 +94,71 @@ time you open the app.
 
 ## Every two weeks
 
+Open the app: the **Home** page shows the round's five steps, what's done and what
+to do next. Each step has an **Open** button.
+
 1. **Contacts** — upload the contact list if it changed.
    - The app shows you what changed before applying anything: new students,
      changed numbers, students who will become inactive.
    - Bad numbers and repeated names are listed for you to fix.
+   - If two students share a WhatsApp number (brothers or sisters), confirm it
+     with **Yes, same parent**. Until you do, their messages can't be approved.
+   - Parents abroad: type the number with `+` or `00` and the country code
+     (for example `+971 50 123 4567`).
 2. **New round** — upload this round's marks files (Advance and Mains).
    - Check the exam name and the first rows the app read, then press
      **Add to round**.
+   - If the app picked the wrong columns, open **Change columns**.
 3. **Needs attention**
    - Confirm which student each file row belongs to. The first round takes a
      few minutes; later rounds are mostly automatic.
-   - Fix any marks problems shown in red.
-4. **Preview & approve** — look at the messages.
+   - Fix anything shown, such as marks problems in red or an absent student.
+4. **Preview & approve** — look at the messages, shown as WhatsApp bubbles.
    - **Approve all Ready** approves every student with no problems.
    - Students that need a look are approved one by one, after you've checked
      them.
-5. **Send** — one student at a time:
-   1. Press **Open in WhatsApp**.
-   2. Press Send in WhatsApp.
-   3. Come back and press **✅ Sent**.
+5. **Send** — see "How sending works" below.
 6. **Reports & history** — see what was sent, what failed and what's pending,
    and download it as Excel.
 
 Nothing is ever sent just because you uploaded a file.
 
+## How sending works
+
+The app picks the way of sending automatically:
+
+- **No API key saved (the normal method):** messages go from your own WhatsApp,
+  one student at a time:
+  1. Press **Open in WhatsApp**. The WhatsApp desktop app opens that parent's
+     chat with the message already typed.
+  2. Press Send in WhatsApp.
+  3. Come back and press **✅ Sent — next**. The next student appears.
+
+  The first time, your browser asks whether to open WhatsApp: tick **Always
+  allow**. Using WhatsApp Web instead? Choose it under **Settings → How
+  WhatsApp opens**, and the app reuses one browser tab.
+- **API key saved:** the app sends all approved messages through Meta's
+  official WhatsApp Business API, with one button. If the API can't be used
+  (for example no template is set for this round, or Meta's side is down),
+  switch on **Send from my own WhatsApp instead**.
+
+Either way, a message only goes out if it's approved and its number and text
+are still exactly what you approved.
+
 ## Settings
 
-- **Message format**: change the text around the marks. Words between `*stars*`
-  show in bold on WhatsApp.
+- **Message format**: change the text around the marks, with a live WhatsApp
+  preview. Words between `*stars*` show in bold on WhatsApp.
 - **Start each message with the student's name**: turn this on if brothers or
-  sisters share a parent's number. The Contacts page warns you when that
-  happens.
+  sisters share a parent's number.
+- **How WhatsApp opens**: the desktop app (recommended on Mac and Windows),
+  WhatsApp Web, or a WhatsApp link (for phones).
 - **Exam names**: which words in a test name mean "Advance Exam" or "Mains
   Exam", and their order in the message.
-- **How WhatsApp opens**: WhatsApp link, WhatsApp Web, or the desktop app.
-- **WhatsApp Business API** (optional): send all approved messages in one go
-  through Meta's official API. Setting it up takes some days; follow
-  [docs/whatsapp-api-setup.md](docs/whatsapp-api-setup.md). Until then, send
-  from your phone.
+- **WhatsApp Business API** (optional): save your Phone Number ID and access
+  token to send through the API. Setting it up with Meta takes some days;
+  follow [docs/whatsapp-api-setup.md](docs/whatsapp-api-setup.md).
+  **Remove API key** switches back to your own WhatsApp.
 
 ## Your data
 

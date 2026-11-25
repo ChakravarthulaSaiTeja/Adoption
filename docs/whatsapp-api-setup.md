@@ -144,12 +144,12 @@ Go to **Settings → WhatsApp Business API** and fill in:
 - the **template name for each kind of round**, e.g. "Advance Exam + Mains
   Exam" → `marks_adv_mains`
 
-Then tick **Use the API for sending** and press **Save API settings**.
+Then press **Save API settings**. From then on the app sends through the API automatically. To go back to sending from your own WhatsApp, press **Remove API key**.
 
 ## How sending works then
 
-On the **Send** page choose **Through WhatsApp API**, then press **Send all
-approved**:
+On the **Send** page press **Send all approved**. (If you ever need to, switch on **Send from my own
+WhatsApp instead**.)
 
 - The app sends one message at a time, with a short pause between them.
 - It stops at once if the token is wrong or Meta says you're sending too fast.
