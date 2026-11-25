@@ -65,6 +65,19 @@ Then install:
 pip install -r requirements.txt
 ```
 
+### Optional: reading scanned PDFs
+
+If a marks PDF is a scan (a picture of the table), the app can read it with
+**Tesseract OCR**, but only if Tesseract is installed:
+
+- **Windows:** install it from <https://github.com/UB-Mannheim/tesseract/wiki>,
+  then restart the terminal.
+- **Mac:** `brew install tesseract`
+
+OCR makes mistakes (a lost minus sign, a misread digit). Every student read from
+a scanned PDF must be checked and approved one by one; the app never approves
+them in bulk. Ask for the Excel file whenever you can.
+
 ## Start it
 
 Each time, open a terminal in this folder, activate as above, then run:
@@ -125,9 +138,9 @@ Nothing is ever sent just because you uploaded a file.
 
 ## Troubleshooting
 
-- **"This PDF is a scanned image"**: the PDF is a photo of the table, not real
-  text. Ask for the Excel file or a normal PDF export. Reading scanned PDFs
-  (OCR) is added in a later stage.
+- **"This PDF is a scanned image and OCR is not installed"**: the PDF is a photo
+  of the table, not real text. Install Tesseract (see above), or ask for the
+  Excel file or a normal PDF export.
 - **"Couldn't find the marks table"**: the file's headers look different from
   usual.
   - Choose the columns by hand on the New round page.

@@ -70,3 +70,17 @@ def make_result(name="PALLAPU MEGHANA SRI", phone="+919876543201",
                              chemistry=parse_mark(c), total=parse_mark(t), total_in_file=parse_mark(t),
                              computed_total=parse_mark(t), absent_row=False, issues=[]))
     return StudentResult(student_id=1, name=name, phone=phone, stud_id="1", exams=ems, issues=[])
+
+
+def image_only_copy(pdf_path, out_dir):
+    """Re-create a PDF as pictures of its pages: like a scanned file, with no text layer."""
+    import pymupdf as fitz
+    src = fitz.open(str(pdf_path))
+    out = fitz.open()
+    for page in src:
+        pix = page.get_pixmap(dpi=200)
+        new = out.new_page(width=page.rect.width, height=page.rect.height)
+        new.insert_image(new.rect, stream=pix.tobytes("png"))
+    path = out_dir / f"scanned-{pdf_path.name}"
+    out.save(str(path))
+    return path

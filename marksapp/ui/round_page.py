@@ -16,7 +16,8 @@ from marksapp.rounds import (RoundLocked, add_exam, create_round, find_duplicate
                              list_exams, list_rounds, remove_exam, round_locked, round_warnings, save_layout)
 from marksapp.settings import get_setting
 
-SCANNED_PDF = "This PDF is a scanned image. Scanned PDFs need OCR (stage 2)."
+NO_OCR = ("This PDF is a scanned image and OCR is not installed. Install Tesseract (see README) "
+          "or ask for the Excel/PDF export.")
 NO_TABLE = ("Couldn't find the marks table: no header row with a student ID and a name column. "
             "Map the columns by hand below.")
 FIELD_LABELS = {"stud_id": "Student ID", "name": "Student name", "maths": "Maths", "physics": "Physics",
@@ -38,8 +39,10 @@ def _first_nonempty_row(grid: Grid) -> int:
 
 
 def _scanned_pdf_grid(data: bytes) -> tuple[Grid | None, str | None]:
-    """Stage 1 has no OCR; replaced in stage 2."""
-    return None, SCANNED_PDF
+    from marksapp.readers import ocr
+    if not ocr.ocr_available():
+        return None, NO_OCR
+    return ocr.ocr_pdf_to_grid(data), None
 
 
 def prepare_upload(conn: sqlite3.Connection, data: bytes, filename: str,
@@ -55,7 +58,8 @@ def prepare_upload(conn: sqlite3.Connection, data: bytes, filename: str,
     except UnsupportedFile as e:
         return UploadPreview(None, None, None, str(e), False)
     if not grid:
-        return UploadPreview(None, None, None, "The file is empty.", via_ocr, grid)
+        msg = "No text could be read from this scanned PDF." if via_ocr else "The file is empty."
+        return UploadPreview(None, None, None, msg, via_ocr, grid)
 
     parsed = None
     if column_map is not None:
